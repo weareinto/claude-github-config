@@ -1,0 +1,96 @@
+name: Update Claude Code and GitHub configuration
+
+# Run this workflow to apply the latest claude-github-config template to this
+# repo. A PR is opened with the changes — review it and merge (or close to skip).
+#
+# Trigger: Actions tab → "Update Claude Code and GitHub configuration" → Run workflow
+#
+# Requires secret CONFIG_PAT: a fine-grained PAT with Contents:read on
+# weareinto/claude-github-config. Without it the workflow fails with a clear error.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on CONFIG_PAT
+        env:
+          CONFIG_PAT: ${{ secrets.CONFIG_PAT }}
+        run: |
+          if [ -z "${CONFIG_PAT}" ]; then
+            echo "::error::CONFIG_PAT is not configured."
+            echo "Add a fine-grained PAT with 'Contents: read' on weareinto/claude-github-config as a repo secret."
+            exit 1
+          fi
+
+      - name: Checkout this repo
+        uses: actions/checkout@v5
+
+      - name: Fetch latest claude-github-config
+        env:
+          CONFIG_PAT: ${{ secrets.CONFIG_PAT }}
+        run: |
+          git clone --quiet --depth 1 \
+            "https://x-access-token:${CONFIG_PAT}@github.com/weareinto/claude-github-config.git" \
+            /tmp/claude-github-config
+
+      - name: Apply configuration (CI mode)
+        run: bash /tmp/claude-github-config/install.sh --ci
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date — no changes to apply."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected:"
+            git status --short
+          fi
+
+      - name: Open PR with changes
+        if: steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEMPLATE_SHA: ${{ github.sha }}
+        run: |
+          BRANCH="chore/claude-github-config-update-$(date +%Y%m%d%H%M%S)"
+          TEMPLATE_VERSION=$(git -C /tmp/claude-github-config rev-parse --short HEAD)
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore: update claude-github-config to ${TEMPLATE_VERSION}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: update claude-github-config (${TEMPLATE_VERSION})" \
+            --body "$(cat <<PRBODY
+## Claude Code and GitHub configuration update
+
+This PR was opened by the **Update Claude Code and GitHub configuration** workflow.
+
+**Template version:** [\`${TEMPLATE_VERSION}\`](https://github.com/weareinto/claude-github-config/commit/${TEMPLATE_VERSION})
+
+### What to do
+
+1. **Review the diff below** — check that no project-specific files (e.g. \`doc/PROJECT.md\`, tech stack section in \`CONTRIBUTING.md\`) were unintentionally overwritten.
+2. **Merge** to apply the update.
+3. **Close without merging** to stay on the current configuration.
+PRBODY
+)"
+          echo "PR opened successfully."
+
+      - name: Already up to date
+        if: steps.changes.outputs.has_changes == 'false'
+        run: echo "This repo is already up to date with the latest claude-github-config. No PR needed."
