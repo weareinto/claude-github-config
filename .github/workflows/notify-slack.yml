@@ -1,0 +1,122 @@
+name: Notify Slack on new release
+
+# Sends a message to #claude-github-config when a new version is pushed to main.
+# Engineers see the notification and decide whether to update their repo by
+# running the "Update Claude Code and GitHub configuration" workflow.
+#
+# Requires secret SLACK_WEBHOOK_URL: an incoming webhook for #claude-github-config.
+# Without it the workflow logs a warning and exits — never blocks a push.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'template/**'
+      - 'install.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on SLACK_WEBHOOK_URL
+        id: gate
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL is not configured. Add an incoming webhook secret to enable Slack notifications. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Build and send Slack message
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+          AUTHOR: ${{ github.event.head_commit.author.name }}
+          REPO: ${{ github.repository }}
+        run: |
+          SHORT_SHA="${COMMIT_SHA::7}"
+
+          # List changed files (template/ and install.sh only)
+          CHANGED=$(git diff --name-only HEAD~1 HEAD -- template/ install.sh 2>/dev/null \
+            | sed 's/^/• /' | head -15 || true)
+
+          # First line of commit message only
+          TITLE="${COMMIT_MSG%%$'\n'*}"
+
+          PAYLOAD=$(python3 -c "
+          import json, os
+
+          changed = os.environ.get('CHANGED', '').strip()
+          files_block = changed if changed else '• (no file details available)'
+
+          message = {
+            'blocks': [
+              {
+                'type': 'header',
+                'text': {
+                  'type': 'plain_text',
+                  'text': ':rocket: New claude-github-config version available'
+                }
+              },
+              {
+                'type': 'section',
+                'fields': [
+                  {
+                    'type': 'mrkdwn',
+                    'text': '*Commit*\n<${COMMIT_URL}|\`${SHORT_SHA}\`> by ${AUTHOR}'
+                  },
+                  {
+                    'type': 'mrkdwn',
+                    'text': '*Change*\n${TITLE}'
+                  }
+                ]
+              },
+              {
+                'type': 'section',
+                'text': {
+                  'type': 'mrkdwn',
+                  'text': '*Files updated*\n' + files_block
+                }
+              },
+              {
+                'type': 'divider'
+              },
+              {
+                'type': 'section',
+                'text': {
+                  'type': 'mrkdwn',
+                  'text': ':arrow_right: *To update your repo:* go to your repo → Actions → *Update Claude Code and GitHub configuration* → Run workflow'
+                }
+              }
+            ]
+          }
+          print(json.dumps(message))
+          " CHANGED="$CHANGED" COMMIT_URL="$COMMIT_URL" SHORT_SHA="$SHORT_SHA" \
+            AUTHOR="$AUTHOR" TITLE="$TITLE")
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$SLACK_WEBHOOK_URL")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Slack notification sent to #claude-github-config."
+          else
+            echo "::warning::Slack webhook returned HTTP $HTTP_STATUS. Check SLACK_WEBHOOK_URL."
+          fi
