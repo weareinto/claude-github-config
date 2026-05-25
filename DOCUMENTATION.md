@@ -752,112 +752,46 @@ Three placeholders are substituted at install time. They appear as `{{NAME}}` in
 
 ## 8. Keeping repos in sync
 
-Two separate concerns: **notification** (engineers learn a new version exists) and **update** (engineers apply it). They are intentionally decoupled — notification is automatic, update is always a human decision.
+Two concerns, fully decoupled:
+
+| Concern | Mechanism | Who triggers it |
+|---|---|---|
+| **Notification** — engineers learn a new version exists | Slack message to `#claude-github-config` | Automatic on push to `main` |
+| **Update** — engineers apply it | `update-config.yml` workflow in their repo | Manual, each engineer decides |
 
 ---
 
-### Notification — `notify-repos.yml`
+### Notification — `notify-slack.yml`
 
 **Trigger:** push to `main` of `claude-github-config` when `template/**` or `install.sh` changes  
-**Secret required:** `NOTIFY_PAT`
+**Secret required:** `SLACK_WEBHOOK_URL`
 
-On every new version, the workflow opens a GitHub issue in each repo listed in `repos.json`:
-
-```
-Title: chore: new claude-github-config version available
-Label: type:chore
-```
-
-The issue body shows the commit, the list of changed files, and the exact steps to apply the update. If an open notification issue already exists in a repo, it is updated instead of creating a duplicate.
-
-**`repos.json`** — the notification registry:
-
-```json
-[
-  { "org": "weareinto", "repo": "ldl-voice-eval-agent" },
-  { "org": "weareinto", "repo": "another-project" }
-]
-```
-
-Add a repo here when it is first configured so it receives future notifications. Remove it if the repo is archived or no longer using this config.
-
-**`NOTIFY_PAT`** — a fine-grained PAT with `Issues: write` on every repo in `repos.json`:
+Sends a message to `#claude-github-config` with:
+- The commit SHA and author
+- The change summary (first line of the commit message)
+- The list of updated files
+- A direct call-to-action: go to your repo → Actions → run the update workflow
 
 ```bash
-gh secret set NOTIFY_PAT --repo weareinto/claude-github-config
+# Add the webhook secret once in claude-github-config
+gh secret set SLACK_WEBHOOK_URL --repo weareinto/claude-github-config
 ```
 
-Without this secret the workflow logs a warning and skips — a missing PAT never blocks a push to `claude-github-config`.
+Create the webhook at: https://api.slack.com/apps → your app → Incoming Webhooks → Add webhook to workspace → select `#claude-github-config`.
+
+Without `SLACK_WEBHOOK_URL` the workflow logs a warning and exits — it never blocks a push.
 
 ---
 
 ### Update — `update-config.yml` (in each target repo)
 
-When the engineer sees the notification issue, they decide whether to apply the update:
+When an engineer sees the Slack notification, they decide whether to update their repo:
 
-1. Go to **Actions** → **Update Claude Code and GitHub configuration** → **Run workflow**
+1. Go to their repo → **Actions** → **Update Claude Code and GitHub configuration** → **Run workflow**
 2. A PR opens with the changed files.
 3. Review the diff — merge to apply, close to skip.
 
-The issue can be closed manually at any time if the engineer decides not to update.
-
----
-
-### `.claude-github-config.json` — local config in each target repo
-
-When `install.sh` runs interactively, it saves the three values to a local file:
-
-```json
-{
-  "org": "weareinto",
-  "repo": "my-project",
-  "project_number": "15"
-}
-```
-
-This file is read by `install.sh --ci` so the update workflow knows which org/repo/board to use without prompting. **Commit this file** — without it the update workflow cannot run.
-
-### `CONFIG_PAT` — required secret in each target repo
-
-`claude-github-config` is a private repo. Each target repo needs a secret to read it:
-
-> A **fine-grained PAT** with `Contents: read` on `weareinto/claude-github-config`.
-
-```bash
-gh secret set CONFIG_PAT --repo <org>/<repo>
-```
-
----
-
-### What `--ci` mode does
-
-In `--ci` mode, `install.sh`:
-- Reads all values from `.claude-github-config.json` (no prompts)
-- Overwrites changed template files without asking
-- Skips the next-steps checklist
-
-Files you have customized beyond the template defaults (e.g. `doc/PROJECT.md`, tech stack section in `CONTRIBUTING.md`) will appear in the PR diff. Review before merging.
-
----
-
-### The full flow
-
-```
-Push to main of claude-github-config (template/* or install.sh changed)
-    │
-    └─► notify-repos.yml opens/updates an issue in each repo in repos.json
-              │
-              └─► Engineer sees the issue in their repo
-                        │
-                        ├─► Wants to update:
-                        │     Actions → "Update Claude Code and GitHub configuration"
-                        │     → Run workflow
-                        │     → PR opened with changes
-                        │     → Engineer reviews diff → merge or close PR
-                        │
-                        └─► Doesn't want to update:
-                              Close the issue — no changes applied
-```
+No action required = no update applied. Each engineer is fully in control.
 
 ---
 
