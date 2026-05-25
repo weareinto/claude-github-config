@@ -81,63 +81,6 @@ is_ignored() {
   return 1
 }
 
-# ---- Gather project-specific values ----------------------------------------
-
-load_config() {
-  if [ -f "$CONFIG_FILE" ]; then
-    ORG=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['org'])" 2>/dev/null || true)
-    REPO=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['repo'])" 2>/dev/null || true)
-    PROJECT_NUMBER=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['project_number'])" 2>/dev/null || true)
-  fi
-}
-
-ORG=""
-REPO=""
-PROJECT_NUMBER=""
-load_config
-
-if [ "$CI_MODE" = true ]; then
-  if [ -z "$ORG" ] || [ -z "$REPO" ] || [ -z "$PROJECT_NUMBER" ]; then
-    echo -e "${RED}Error: --ci mode requires a .claude-github-config.json file in the target directory.${NC}"
-    echo "Run the installer interactively first to create it."
-    exit 1
-  fi
-  echo -e "Using saved config: ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
-else
-  if [ -n "$ORG" ] && [ -n "$REPO" ] && [ -n "$PROJECT_NUMBER" ]; then
-    echo -e "Found saved config from previous install:"
-    echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
-    echo ""
-    read -rp "Use these values? [Y/n] " USE_SAVED
-    if [[ "$USE_SAVED" =~ ^[nN]$ ]]; then
-      ORG=""
-      REPO=""
-      PROJECT_NUMBER=""
-    fi
-  fi
-
-  if [ -z "$ORG" ]; then
-    ORG="weareinto"
-    read -rp "$(echo -e "${BOLD}GitHub organization${NC} (press Enter to use ${BOLD}weareinto${NC}): ")" INPUT_ORG
-    [ -n "$INPUT_ORG" ] && ORG="$INPUT_ORG"
-  fi
-  if [ -z "$REPO" ]; then
-    read -rp "$(echo -e "${BOLD}Repository name${NC} (e.g. my-project): ")" REPO
-  fi
-  if [ -z "$PROJECT_NUMBER" ]; then
-    read -rp "$(echo -e "${BOLD}GitHub Project board number${NC} (e.g. 15): ")" PROJECT_NUMBER
-  fi
-
-  echo ""
-  echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
-  echo ""
-  read -rp "Proceed? [y/N] " CONFIRM
-  [[ "$CONFIRM" =~ ^[yY]$ ]] || { echo "Aborted."; exit 0; }
-fi
-
-echo ""
-validate_inputs
-
 # ---- Pre-flight validation -------------------------------------------------
 # Runs before any file is written. Stops immediately if gh is not
 # authenticated or if org / repo / project number don't exist on GitHub.
@@ -205,6 +148,64 @@ validate_inputs() {
 
   echo ""
 }
+
+# ---- Gather project-specific values ----------------------------------------
+
+load_config() {
+  if [ -f "$CONFIG_FILE" ]; then
+    ORG=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['org'])" 2>/dev/null || true)
+    REPO=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['repo'])" 2>/dev/null || true)
+    PROJECT_NUMBER=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['project_number'])" 2>/dev/null || true)
+  fi
+}
+
+ORG=""
+REPO=""
+PROJECT_NUMBER=""
+load_config
+
+if [ "$CI_MODE" = true ]; then
+  if [ -z "$ORG" ] || [ -z "$REPO" ] || [ -z "$PROJECT_NUMBER" ]; then
+    echo -e "${RED}Error: --ci mode requires a .claude-github-config.json file in the target directory.${NC}"
+    echo "Run the installer interactively first to create it."
+    exit 1
+  fi
+  echo -e "Using saved config: ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+else
+  if [ -n "$ORG" ] && [ -n "$REPO" ] && [ -n "$PROJECT_NUMBER" ]; then
+    echo -e "Found saved config from previous install:"
+    echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+    echo ""
+    read -rp "Use these values? [Y/n] " USE_SAVED
+    if [[ "$USE_SAVED" =~ ^[nN]$ ]]; then
+      ORG=""
+      REPO=""
+      PROJECT_NUMBER=""
+    fi
+  fi
+
+  if [ -z "$ORG" ]; then
+    ORG="weareinto"
+    read -rp "$(echo -e "${BOLD}GitHub organization${NC} (press Enter to use ${BOLD}weareinto${NC}): ")" INPUT_ORG
+    [ -n "$INPUT_ORG" ] && ORG="$INPUT_ORG"
+  fi
+  if [ -z "$REPO" ]; then
+    read -rp "$(echo -e "${BOLD}Repository name${NC} (e.g. my-project): ")" REPO
+  fi
+  if [ -z "$PROJECT_NUMBER" ]; then
+    read -rp "$(echo -e "${BOLD}GitHub Project board number${NC} (e.g. 15): ")" PROJECT_NUMBER
+  fi
+
+  echo ""
+  echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+  echo ""
+  read -rp "Proceed? [y/N] " CONFIRM
+  [[ "$CONFIRM" =~ ^[yY]$ ]] || { echo "Aborted."; exit 0; }
+fi
+
+echo ""
+
+validate_inputs
 
 # ---- Save config for future runs -------------------------------------------
 
