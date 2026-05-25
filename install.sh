@@ -6,13 +6,12 @@
 #   - Existing files show a diff and ask before overwriting.
 #   - Running it again is safe (idempotent).
 #
-# Usage:
-#   1. Clone this repo: git clone https://github.com/weareinto/claude-github-config.git
-#   2. cd into your target project
-#   3. bash /path/to/claude-github-config/install.sh
-#
-# Or one-liner (always fetches latest):
+# Usage (interactive):
+#   cd /path/to/your-project
 #   bash <(curl -fsSL https://raw.githubusercontent.com/weareinto/claude-github-config/main/install.sh)
+#
+# Usage (CI / non-interactive) — reads values from .claude-github-config.json:
+#   bash install.sh --ci
 
 set -euo pipefail
 
@@ -23,9 +22,19 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# ---- Parse flags -----------------------------------------------------------
+
+CI_MODE=false
+for arg in "$@"; do
+  case "$arg" in
+    --ci) CI_MODE=true ;;
+  esac
+done
+
 TARGET_DIR="$(pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/template"
+CONFIG_FILE="$TARGET_DIR/.claude-github-config.json"
 
 # If template dir not found (e.g. run via curl), clone the repo to a temp dir.
 if [ ! -d "$TEMPLATE_DIR" ]; then
@@ -50,24 +59,74 @@ if ! git -C "$TARGET_DIR" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 
 # ---- Gather project-specific values ----------------------------------------
+# Priority: 1) .claude-github-config.json  2) interactive prompt
 
-read -rp "$(echo -e "${BOLD}GitHub organization${NC} (e.g. weareinto): ")" ORG
-read -rp "$(echo -e "${BOLD}Repository name${NC} (e.g. my-project): ")" REPO
-read -rp "$(echo -e "${BOLD}GitHub Project board number${NC} (e.g. 15): ")" PROJECT_NUMBER
+load_config() {
+  if [ -f "$CONFIG_FILE" ]; then
+    ORG=$(python3 -c "import json,sys; d=json.load(open('$CONFIG_FILE')); print(d['org'])" 2>/dev/null || true)
+    REPO=$(python3 -c "import json,sys; d=json.load(open('$CONFIG_FILE')); print(d['repo'])" 2>/dev/null || true)
+    PROJECT_NUMBER=$(python3 -c "import json,sys; d=json.load(open('$CONFIG_FILE')); print(d['project_number'])" 2>/dev/null || true)
+  fi
+}
+
+ORG=""
+REPO=""
+PROJECT_NUMBER=""
+load_config
+
+if [ "$CI_MODE" = true ]; then
+  if [ -z "$ORG" ] || [ -z "$REPO" ] || [ -z "$PROJECT_NUMBER" ]; then
+    echo -e "${RED}Error: --ci mode requires a .claude-github-config.json file in the target directory.${NC}"
+    echo "Run the installer interactively first to create it."
+    exit 1
+  fi
+  echo -e "Using saved config: ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+else
+  if [ -n "$ORG" ] && [ -n "$REPO" ] && [ -n "$PROJECT_NUMBER" ]; then
+    echo -e "Found saved config from previous install:"
+    echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+    echo ""
+    read -rp "Use these values? [Y/n] " USE_SAVED
+    if [[ "$USE_SAVED" =~ ^[nN]$ ]]; then
+      ORG=""
+      REPO=""
+      PROJECT_NUMBER=""
+    fi
+  fi
+
+  if [ -z "$ORG" ]; then
+    read -rp "$(echo -e "${BOLD}GitHub organization${NC} (e.g. weareinto): ")" ORG
+  fi
+  if [ -z "$REPO" ]; then
+    read -rp "$(echo -e "${BOLD}Repository name${NC} (e.g. my-project): ")" REPO
+  fi
+  if [ -z "$PROJECT_NUMBER" ]; then
+    read -rp "$(echo -e "${BOLD}GitHub Project board number${NC} (e.g. 15): ")" PROJECT_NUMBER
+  fi
+
+  echo ""
+  echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+  echo ""
+  read -rp "Proceed? [y/N] " CONFIRM
+  [[ "$CONFIRM" =~ ^[yY]$ ]] || { echo "Aborted."; exit 0; }
+fi
 
 echo ""
-echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
-echo ""
-read -rp "Proceed? [y/N] " CONFIRM
-[[ "$CONFIRM" =~ ^[yY]$ ]] || { echo "Aborted."; exit 0; }
-echo ""
+
+# ---- Save config for future runs -------------------------------------------
+
+python3 - << PYEOF
+import json
+with open('$CONFIG_FILE', 'w') as f:
+    json.dump({"org": "$ORG", "repo": "$REPO", "project_number": "$PROJECT_NUMBER"}, f, indent=2)
+PYEOF
 
 SKIPPED=0
 CREATED=0
 UPDATED=0
 UNCHANGED=0
 
-# ---- Substitute placeholders in content ------------------------------------
+# ---- Substitution function -------------------------------------------------
 
 substitute() {
   sed \
@@ -80,7 +139,7 @@ substitute() {
 
 apply_file() {
   local src="$1"
-  local rel="$2"           # relative path within the project
+  local rel="$2"
   local dst="$TARGET_DIR/$rel"
   local dst_dir
   dst_dir="$(dirname "$dst")"
@@ -92,7 +151,6 @@ apply_file() {
 
   if [ ! -f "$dst" ]; then
     printf '%s' "$new_content" > "$dst"
-    # Preserve executable bit for shell scripts.
     [[ "$src" == *.sh ]] && chmod +x "$dst"
     echo -e "  ${GREEN}created${NC}  $rel"
     CREATED=$((CREATED + 1))
@@ -103,8 +161,16 @@ apply_file() {
   existing_content="$(cat "$dst")"
 
   if [ "$new_content" = "$existing_content" ]; then
-    echo -e "  ${NC}ok${NC}       $rel"
+    echo -e "  ok       $rel"
     UNCHANGED=$((UNCHANGED + 1))
+    return
+  fi
+
+  if [ "$CI_MODE" = true ]; then
+    printf '%s' "$new_content" > "$dst"
+    [[ "$src" == *.sh ]] && chmod +x "$dst"
+    echo -e "  ${GREEN}updated${NC}  $rel"
+    UPDATED=$((UPDATED + 1))
     return
   fi
 
@@ -152,31 +218,33 @@ echo ""
 echo -e "${BOLD}Done.${NC}"
 echo -e "  ${GREEN}created${NC}   $CREATED file(s)"
 echo -e "  ${GREEN}updated${NC}   $UPDATED file(s)"
-echo -e "  ${NC}unchanged${NC} $UNCHANGED file(s)"
+echo -e "  ok        $UNCHANGED file(s) unchanged"
 [ "$SKIPPED" -gt 0 ] && echo -e "  ${YELLOW}skipped${NC}   $SKIPPED file(s)"
 
-echo ""
-echo -e "${BOLD}Next steps:${NC}"
-echo ""
-echo -e "  ${BOLD}1. Fill in doc/PROJECT.md${NC}  ← do this first"
-echo "     Claude Code loads this file at every session start."
-echo "     Without it, the AI has no context about what this project is."
-echo "     Open the file and complete the sections:"
-echo "       - What is this project?"
-echo "       - Architecture"
-echo "       - Domain concepts"
-echo "       - Key technical decisions"
-echo ""
-echo "  2. Add the PROJECT_PAT secret to your GitHub repo:"
-echo "     gh secret set PROJECT_PAT --repo $ORG/$REPO"
-echo ""
-echo "  3. Verify your GitHub Project v2 board (#$PROJECT_NUMBER) has these Status columns:"
-echo "     Backlog → Ready → In progress → In review → Ready to deploy → Staging → Production → Done"
-echo ""
-echo "  4. Fill in the tech stack setup section in CONTRIBUTING.md."
-echo ""
-echo "  5. Create a CLAUDE.local.md (gitignored) with your personal Claude Code preferences."
-echo ""
-echo "  6. Commit the applied files:"
-echo "     git add . && git commit -m "chore: apply claude-github-config""
-echo ""
+if [ "$CI_MODE" = false ]; then
+  echo ""
+  echo -e "${BOLD}Next steps:${NC}"
+  echo ""
+  echo -e "  ${BOLD}1. Fill in doc/PROJECT.md${NC}  ← do this first"
+  echo "     Claude Code loads this file at every session start."
+  echo "     Without it, the AI has no context about what this project is."
+  echo "     Open the file and complete the sections:"
+  echo "       - What is this project?"
+  echo "       - Architecture"
+  echo "       - Domain concepts"
+  echo "       - Key technical decisions"
+  echo ""
+  echo "  2. Add the PROJECT_PAT secret to your GitHub repo:"
+  echo "     gh secret set PROJECT_PAT --repo $ORG/$REPO"
+  echo ""
+  echo "  3. Verify your GitHub Project v2 board (#$PROJECT_NUMBER) has these Status columns:"
+  echo "     Backlog → Ready → In progress → In review → Ready to deploy → Staging → Production → Done"
+  echo ""
+  echo "  4. Fill in the tech stack setup section in CONTRIBUTING.md."
+  echo ""
+  echo "  5. Create a CLAUDE.local.md (gitignored) with your personal Claude Code preferences."
+  echo ""
+  echo "  6. Commit the applied files:"
+  echo "     git add . && git commit -m \"chore: apply claude-github-config\""
+  echo ""
+fi

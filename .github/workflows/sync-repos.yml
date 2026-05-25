@@ -1,0 +1,136 @@
+name: Sync configuration to registered repos
+
+# Triggered on every push to main — opens a PR in each repo listed in
+# repos.json with the updated configuration files.
+#
+# Requires a secret SYNC_PAT: a fine-grained PAT with:
+#   - Contents: write  (to push the update branch)
+#   - Pull requests: write  (to open the PR)
+#   - Metadata: read
+# The PAT must have access to every repo listed in repos.json.
+#
+# Without SYNC_PAT the workflow logs a warning and exits — it never blocks
+# a push to this repo.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'template/**'
+      - 'install.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on SYNC_PAT
+        id: gate
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+        run: |
+          if [ -z "${SYNC_PAT}" ]; then
+            echo "::warning::SYNC_PAT is not configured. Add a fine-grained PAT with 'contents:write' and 'pull-requests:write' scopes to enable automatic sync. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout claude-github-config
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v5
+        with:
+          path: claude-github-config
+
+      - name: Install jq
+        if: steps.gate.outputs.skip != 'true'
+        run: sudo apt-get install -y jq
+
+      - name: Sync each registered repo
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+          TEMPLATE_REPO: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          git config --global user.name  "claude-github-config[bot]"
+          git config --global user.email "claude-github-config[bot]@users.noreply.github.com"
+
+          REPOS=$(jq -c '.[]' claude-github-config/repos.json)
+
+          while IFS= read -r entry; do
+            ORG=$(echo "$entry"        | jq -r '.org')
+            REPO=$(echo "$entry"       | jq -r '.repo')
+            PROJECT_NUMBER=$(echo "$entry" | jq -r '.project_number')
+
+            echo ""
+            echo "──────────────────────────────────────────"
+            echo "Syncing $ORG/$REPO (board #$PROJECT_NUMBER)"
+            echo "──────────────────────────────────────────"
+
+            # Clone the target repo
+            WORK_DIR="$(mktemp -d)"
+            git clone --depth 1 "https://x-access-token:${SYNC_PAT}@github.com/$ORG/$REPO.git" "$WORK_DIR"
+
+            # Run the installer in CI mode
+            cd "$WORK_DIR"
+            bash "$GITHUB_WORKSPACE/claude-github-config/install.sh" --ci
+
+            # Check if anything changed
+            if git -C "$WORK_DIR" diff --quiet && git -C "$WORK_DIR" status --porcelain | grep -q '^'; then
+              echo "No changes for $ORG/$REPO — skipping PR."
+              rm -rf "$WORK_DIR"
+              cd "$GITHUB_WORKSPACE"
+              continue
+            fi
+
+            if [ -z "$(git -C "$WORK_DIR" status --porcelain)" ]; then
+              echo "No changes for $ORG/$REPO — skipping PR."
+              rm -rf "$WORK_DIR"
+              cd "$GITHUB_WORKSPACE"
+              continue
+            fi
+
+            # Create update branch and open PR
+            BRANCH="chore/claude-github-config-sync-${COMMIT_SHA::7}"
+
+            git -C "$WORK_DIR" checkout -b "$BRANCH"
+            git -C "$WORK_DIR" add -A
+            git -C "$WORK_DIR" commit -m "chore: sync claude-github-config (${COMMIT_SHA::7})"
+            git -C "$WORK_DIR" push "https://x-access-token:${SYNC_PAT}@github.com/$ORG/$REPO.git" "$BRANCH"
+
+            # Open PR via gh CLI
+            GH_TOKEN="$SYNC_PAT" gh pr create \
+              --repo "$ORG/$REPO" \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore: sync claude-github-config (${COMMIT_SHA::7})" \
+              --body "$(cat <<PRBODY
+## claude-github-config sync
+
+This PR was opened automatically by the **sync-repos** workflow in [\`weareinto/claude-github-config\`](https://github.com/weareinto/claude-github-config).
+
+**Source commit:** [\`${COMMIT_SHA::7}\`](https://github.com/$TEMPLATE_REPO/commit/$COMMIT_SHA)
+
+### What changed
+
+Review the diff below. These changes come from updates to the shared configuration template — new skills, workflow improvements, hook fixes, or documentation updates.
+
+### What to do
+
+- **Review the diff** — check that no project-specific customizations (e.g. \`doc/PROJECT.md\`, tech stack in \`CONTRIBUTING.md\`) were overwritten.
+- **Merge if everything looks good.**
+- **Close without merging** if you want to stay on the current version.
+
+> Files you have customized beyond the template defaults may need manual adjustment after merging.
+PRBODY
+)" || echo "::warning::Failed to open PR for $ORG/$REPO — branch pushed, create PR manually."
+
+            rm -rf "$WORK_DIR"
+            cd "$GITHUB_WORKSPACE"
+
+          done <<< "$REPOS"
