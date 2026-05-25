@@ -1,8 +1,14 @@
 # claude-github-config — Complete Reference
 
-This document describes every component of the `claude-github-config` template: what it contains, what each piece does, how the parts connect, and how to maintain the template over time.
+## Purpose
 
-**Audience:** developers at weareinto who are applying this template to a project, or who want to understand or extend it.
+`claude-github-config` is an internal tool for INTO AI engineers. It deploys the standard Claude Code and GitHub workflow configuration onto any INTO AI repository.
+
+At INTO AI, every project follows the same development workflow: structured GitHub issues with a Definition of Ready, a Project v2 board with automated status transitions, Claude Code with guardrails and productivity skills, a towncrier-based changelog, and a consistent release process. Maintaining this setup manually across multiple repos is error-prone and time-consuming. This tool packages the entire configuration and applies it to any existing repo with a single command.
+
+**Audience:** INTO AI engineers who are applying this configuration to a repo, or who want to understand, extend, or maintain the tool itself.
+
+**Scope:** this tool targets existing repositories only. It does not create new repos — INTO AI has a separate project template for that.
 
 ---
 
@@ -28,7 +34,7 @@ This document describes every component of the `claude-github-config` template: 
 
 ## 1. Overview
 
-`claude-github-config` packages the development workflow used at weareinto into a reusable template. It covers two layers:
+`claude-github-config` covers two configuration layers applied to each INTO AI repository:
 
 | Layer | Location | Purpose |
 |---|---|---|
@@ -39,11 +45,12 @@ These two layers are designed to work together. Claude Code skills like `/branch
 
 ### What is NOT included
 
-The template deliberately excludes:
-- **Deployment workflows** (too project-specific — paths, runners, and environments vary per project)
-- **CI workflow** (linting, testing — stack-dependent; add your own `ci.yml`)
-- **`CLAUDE.local.md`** (personal preferences — gitignored by design)
-- **`wiki-brain.json`** (local Obsidian vault path — machine-specific)
+The tool deliberately excludes:
+- **Deployment workflows** — paths, runners, and environments vary per project; add your own
+- **CI workflow** — stack-dependent; add your own `ci.yml` (lint, test, format)
+- **`CLAUDE.local.md`** — personal Claude Code preferences, gitignored by design
+- **`wiki-brain.json`** — local Obsidian vault path, machine-specific
+- **New repo creation** — INTO AI has a separate project template for bootstrapping new repos
 
 ---
 
