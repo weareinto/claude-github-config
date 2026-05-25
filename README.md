@@ -55,3 +55,7 @@ Re-run the installer — it only touches files that have changed, and asks befor
 | `generate-changelog.yml` | Manual dispatch | Rolls changelog fragments into CHANGELOG.md, opens release PR |
 | `tag-on-release-merge.yml` | Release PR merged | Creates annotated tag + GitHub Release |
 | `sync-deploy-status.yml` | Push to staging/production | Moves linked issues' cards to Staging or Production |
+
+## Full documentation
+
+For a complete reference of every component — hooks, skills, workflows, scripts, placeholders, and maintenance guide — see [DOCUMENTATION.md](DOCUMENTATION.md).
