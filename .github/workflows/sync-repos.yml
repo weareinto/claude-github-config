@@ -1,23 +1,26 @@
 name: Sync configuration to registered repos
 
-# Triggered on every push to main — opens a PR in each repo listed in
-# repos.json with the updated configuration files.
+# Manual trigger only — run this workflow when you want to push a configuration
+# update to one or all registered repos. Each repo receives a PR it can review
+# and merge (or close) at its own pace.
 #
-# Requires a secret SYNC_PAT: a fine-grained PAT with:
-#   - Contents: write  (to push the update branch)
-#   - Pull requests: write  (to open the PR)
+# Inputs:
+#   repo  — target a single repo (e.g. "ldl-voice-eval-agent"), or leave blank
+#           to sync all repos listed in repos.json.
+#
+# Requires secret SYNC_PAT: a fine-grained PAT with:
+#   - Contents: write  (push the update branch)
+#   - Pull requests: write  (open the PR)
 #   - Metadata: read
 # The PAT must have access to every repo listed in repos.json.
-#
-# Without SYNC_PAT the workflow logs a warning and exits — it never blocks
-# a push to this repo.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'template/**'
-      - 'install.sh'
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Repo to sync (leave blank to sync all repos in repos.json)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -32,39 +35,44 @@ jobs:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
         run: |
           if [ -z "${SYNC_PAT}" ]; then
-            echo "::warning::SYNC_PAT is not configured. Add a fine-grained PAT with 'contents:write' and 'pull-requests:write' scopes to enable automatic sync. Skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "::error::SYNC_PAT is not configured. Add a fine-grained PAT with 'contents:write' and 'pull-requests:write' scopes to enable sync."
+            exit 1
           fi
 
       - name: Checkout claude-github-config
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v5
         with:
           path: claude-github-config
 
       - name: Install jq
-        if: steps.gate.outputs.skip != 'true'
         run: sudo apt-get install -y jq
 
-      - name: Sync each registered repo
-        if: steps.gate.outputs.skip != 'true'
+      - name: Sync repos
         env:
           SYNC_PAT: ${{ secrets.SYNC_PAT }}
           TEMPLATE_REPO: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
+          TARGET_REPO: ${{ inputs.repo }}
         run: |
           set -euo pipefail
 
           git config --global user.name  "claude-github-config[bot]"
           git config --global user.email "claude-github-config[bot]@users.noreply.github.com"
 
-          REPOS=$(jq -c '.[]' claude-github-config/repos.json)
+          # Filter repos.json by input if provided
+          if [ -n "$TARGET_REPO" ]; then
+            REPOS=$(jq -c --arg r "$TARGET_REPO" '.[] | select(.repo == $r)' claude-github-config/repos.json)
+            if [ -z "$REPOS" ]; then
+              echo "::error::Repo '$TARGET_REPO' not found in repos.json."
+              exit 1
+            fi
+          else
+            REPOS=$(jq -c '.[]' claude-github-config/repos.json)
+          fi
 
-          while IFS= read -r entry; do
-            ORG=$(echo "$entry"        | jq -r '.org')
-            REPO=$(echo "$entry"       | jq -r '.repo')
+          echo "$REPOS" | while IFS= read -r entry; do
+            ORG=$(echo "$entry"            | jq -r '.org')
+            REPO=$(echo "$entry"           | jq -r '.repo')
             PROJECT_NUMBER=$(echo "$entry" | jq -r '.project_number')
 
             echo ""
@@ -81,15 +89,8 @@ jobs:
             bash "$GITHUB_WORKSPACE/claude-github-config/install.sh" --ci
 
             # Check if anything changed
-            if git -C "$WORK_DIR" diff --quiet && git -C "$WORK_DIR" status --porcelain | grep -q '^'; then
-              echo "No changes for $ORG/$REPO — skipping PR."
-              rm -rf "$WORK_DIR"
-              cd "$GITHUB_WORKSPACE"
-              continue
-            fi
-
             if [ -z "$(git -C "$WORK_DIR" status --porcelain)" ]; then
-              echo "No changes for $ORG/$REPO — skipping PR."
+              echo "No changes for $ORG/$REPO — already up to date."
               rm -rf "$WORK_DIR"
               cd "$GITHUB_WORKSPACE"
               continue
@@ -103,7 +104,6 @@ jobs:
             git -C "$WORK_DIR" commit -m "chore: sync claude-github-config (${COMMIT_SHA::7})"
             git -C "$WORK_DIR" push "https://x-access-token:${SYNC_PAT}@github.com/$ORG/$REPO.git" "$BRANCH"
 
-            # Open PR via gh CLI
             GH_TOKEN="$SYNC_PAT" gh pr create \
               --repo "$ORG/$REPO" \
               --base main \
@@ -112,25 +112,19 @@ jobs:
               --body "$(cat <<PRBODY
 ## claude-github-config sync
 
-This PR was opened automatically by the **sync-repos** workflow in [\`weareinto/claude-github-config\`](https://github.com/weareinto/claude-github-config).
+This PR was opened by the **Sync configuration to registered repos** workflow in [\`weareinto/claude-github-config\`](https://github.com/weareinto/claude-github-config).
 
 **Source commit:** [\`${COMMIT_SHA::7}\`](https://github.com/$TEMPLATE_REPO/commit/$COMMIT_SHA)
 
-### What changed
-
-Review the diff below. These changes come from updates to the shared configuration template — new skills, workflow improvements, hook fixes, or documentation updates.
-
 ### What to do
 
-- **Review the diff** — check that no project-specific customizations (e.g. \`doc/PROJECT.md\`, tech stack in \`CONTRIBUTING.md\`) were overwritten.
-- **Merge if everything looks good.**
-- **Close without merging** if you want to stay on the current version.
-
-> Files you have customized beyond the template defaults may need manual adjustment after merging.
+- **Review the diff carefully** — check that no project-specific customizations (e.g. \`doc/PROJECT.md\`, tech stack section in \`CONTRIBUTING.md\`) were overwritten.
+- **Merge** if everything looks good.
+- **Close without merging** to stay on the current version.
 PRBODY
-)" || echo "::warning::Failed to open PR for $ORG/$REPO — branch pushed, create PR manually."
+)" && echo "PR opened for $ORG/$REPO." \
+              || echo "::warning::Failed to open PR for $ORG/$REPO — branch pushed, create PR manually."
 
             rm -rf "$WORK_DIR"
             cd "$GITHUB_WORKSPACE"
-
-          done <<< "$REPOS"
+          done
