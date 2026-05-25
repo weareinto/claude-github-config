@@ -251,12 +251,140 @@ apply_file() {
   esac
 }
 
+
+# ---- Verify / add GitHub Project status columns ----------------------------
+# Queries project #PROJECT_NUMBER and ensures all 9 required Status options
+# exist. Missing options are added automatically via the GraphQL API.
+# Requires: gh CLI authenticated with `project` scope.
+
+ensure_project_statuses() {
+  echo ""
+  echo -e "${BOLD}Checking GitHub Project #${PROJECT_NUMBER} status columns...${NC}"
+
+  if ! command -v gh &>/dev/null; then
+    echo -e "  ${YELLOW}skipped${NC}  gh CLI not found"
+    return
+  fi
+
+  local field_data
+  if ! field_data=$(gh api graphql -f query='
+    query($org: String!, $number: Int!) {
+      organization(login: $org) {
+        projectV2(number: $number) {
+          id
+          field(name: "Status") {
+            ... on ProjectV2SingleSelectField {
+              id
+              options { id name color description }
+            }
+          }
+        }
+      }
+    }
+  ' -F org="$ORG" -F number="$PROJECT_NUMBER" 2>/dev/null); then
+    echo -e "  ${YELLOW}warning${NC}  Cannot query project #${PROJECT_NUMBER} — check: gh auth status"
+    return
+  fi
+
+  local project_id field_id
+  project_id=$(jq -r '.data.organization.projectV2.id // empty' <<<"$field_data")
+  field_id=$(jq -r '.data.organization.projectV2.field.id // empty' <<<"$field_data")
+
+  if [ -z "$project_id" ] || [ -z "$field_id" ]; then
+    echo -e "  ${YELLOW}warning${NC}  Project #${PROJECT_NUMBER} not found or has no Status field"
+    return
+  fi
+
+  # Compute missing statuses and full options list via Python
+  local py_result
+  py_result=$(FIELD_DATA="$field_data" python3 << 'INNEREOF'
+import json, os
+
+EXPECTED = [
+    ("Backlog",         "GRAY"),
+    ("Ready",           "BLUE"),
+    ("Blocked",         "RED"),
+    ("In progress",     "YELLOW"),
+    ("In review",       "PURPLE"),
+    ("Ready to deploy", "GREEN"),
+    ("Staging",         "ORANGE"),
+    ("Production",      "GREEN"),
+    ("Done",            "GRAY"),
+]
+
+fd = json.loads(os.environ["FIELD_DATA"])
+current = fd["data"]["organization"]["projectV2"]["field"]["options"]
+current_names = {o["name"] for o in current}
+missing = [(n, c) for n, c in EXPECTED if n not in current_names]
+
+if not missing:
+    print("STATUS:ok")
+else:
+    print("STATUS:missing:" + ", ".join(n for n, _ in missing))
+    # Full list: existing options (preserve id) + new ones (no id)
+    all_opts = [
+        {"id": o["id"], "name": o["name"],
+         "color": o.get("color") or "GRAY",
+         "description": o.get("description") or ""}
+        for o in current
+    ]
+    for name, color in missing:
+        all_opts.append({"name": name, "color": color, "description": ""})
+    print("OPTIONS:" + json.dumps(all_opts))
+INNEREOF
+  )
+
+  local status_line missing_names
+  status_line=$(grep "^STATUS:" <<<"$py_result")
+
+  if [[ "$status_line" == "STATUS:ok" ]]; then
+    echo -e "  ${GREEN}ok${NC}       All 9 status columns verified"
+    return
+  fi
+
+  missing_names=$(sed 's/STATUS:missing://' <<<"$status_line")
+  local options_json
+  options_json=$(grep "^OPTIONS:" <<<"$py_result" | sed 's/OPTIONS://')
+
+  echo -e "  ${YELLOW}adding${NC}   Missing: $missing_names"
+
+  # Build the full GraphQL request body and call the mutation
+  local mut_file
+  mut_file=$(mktemp)
+
+  FIELD_ID="$field_id" OPTIONS="$options_json" python3 << 'INNEREOF' > "$mut_file"
+import json, os
+body = {
+    "query": (
+        "mutation($fieldId:ID!,$options:[ProjectV2SingleSelectFieldOptionInput!]!){"
+        "updateProjectV2Field(input:{fieldId:$fieldId,singleSelectOptions:$options}){"
+        "projectV2Field{...on ProjectV2SingleSelectField{options{name}}}}}"
+    ),
+    "variables": {
+        "fieldId": os.environ["FIELD_ID"],
+        "options": json.loads(os.environ["OPTIONS"]),
+    },
+}
+print(json.dumps(body))
+INNEREOF
+
+  if gh api graphql --input "$mut_file" > /dev/null 2>&1; then
+    echo -e "  ${GREEN}added${NC}    $missing_names"
+  else
+    echo -e "  ${RED}failed${NC}   Could not add columns — add them manually in project settings:"
+    echo -e "           $missing_names"
+  fi
+  rm -f "$mut_file"
+}
+
 # ---- Walk the template directory and apply every file ----------------------
 
 while IFS= read -r -d '' src_file; do
   rel="${src_file#$TEMPLATE_DIR/}"
   apply_file "$src_file" "$rel"
 done < <(find "$TEMPLATE_DIR" -type f -print0 | sort -z)
+
+ensure_project_statuses
 
 # ---- Summary ---------------------------------------------------------------
 
