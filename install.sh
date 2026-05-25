@@ -169,9 +169,9 @@ apply_file() {
   local dst_dir
   dst_dir="$(dirname "$dst")"
 
-  # Check ignore list first
-  if is_ignored "$rel"; then
-    echo -e "  ${BLUE}ignored${NC}  $rel  (in .claude-github-config-ignore)"
+  # Only protect files that already exist — never block initial creation.
+  if [ -f "$dst" ] && is_ignored "$rel"; then
+    echo -e "  ${BLUE}ignored${NC}  $rel  (protected by .claude-github-config-ignore)"
     IGNORED=$((IGNORED + 1))
     return
   fi
