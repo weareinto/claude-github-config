@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # install.sh — apply weareinto/claude-github-config to the current repository.
 #
-# Works for new and existing projects alike:
+# Behavior:
 #   - New files are created directly.
-#   - Existing files show a diff and ask before overwriting.
+#   - Existing files: shows diff and asks (interactive) or overwrites (--ci).
+#   - Files listed in .claude-github-config-ignore are never overwritten.
+#   - Files added locally (not in the template) are never touched.
 #   - Running it again is safe (idempotent).
 #
 # Usage (interactive):
@@ -35,6 +37,7 @@ TARGET_DIR="$(pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/template"
 CONFIG_FILE="$TARGET_DIR/.claude-github-config.json"
+IGNORE_FILE="$TARGET_DIR/.claude-github-config-ignore"
 
 # If template dir not found (e.g. run via curl), clone the repo to a temp dir.
 if [ ! -d "$TEMPLATE_DIR" ]; then
@@ -58,14 +61,33 @@ if ! git -C "$TARGET_DIR" rev-parse --git-dir > /dev/null 2>&1; then
   exit 1
 fi
 
+# ---- Load ignore list ------------------------------------------------------
+# Files in .claude-github-config-ignore are never overwritten by the installer.
+
+is_ignored() {
+  local rel="$1"
+  if [ ! -f "$IGNORE_FILE" ]; then
+    return 1
+  fi
+  while IFS= read -r pattern || [ -n "$pattern" ]; do
+    # Skip empty lines and comments
+    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+    # Simple glob match against the relative path
+    # shellcheck disable=SC2254
+    case "$rel" in
+      $pattern) return 0 ;;
+    esac
+  done < "$IGNORE_FILE"
+  return 1
+}
+
 # ---- Gather project-specific values ----------------------------------------
-# Priority: 1) .claude-github-config.json  2) interactive prompt
 
 load_config() {
   if [ -f "$CONFIG_FILE" ]; then
-    ORG=$(python3 -c "import json,sys; d=json.load(open('$CONFIG_FILE')); print(d['org'])" 2>/dev/null || true)
-    REPO=$(python3 -c "import json,sys; d=json.load(open('$CONFIG_FILE')); print(d['repo'])" 2>/dev/null || true)
-    PROJECT_NUMBER=$(python3 -c "import json,sys; d=json.load(open('$CONFIG_FILE')); print(d['project_number'])" 2>/dev/null || true)
+    ORG=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['org'])" 2>/dev/null || true)
+    REPO=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['repo'])" 2>/dev/null || true)
+    PROJECT_NUMBER=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(d['project_number'])" 2>/dev/null || true)
   fi
 }
 
@@ -122,6 +144,7 @@ with open('$CONFIG_FILE', 'w') as f:
 PYEOF
 
 SKIPPED=0
+IGNORED=0
 CREATED=0
 UPDATED=0
 UNCHANGED=0
@@ -143,6 +166,13 @@ apply_file() {
   local dst="$TARGET_DIR/$rel"
   local dst_dir
   dst_dir="$(dirname "$dst")"
+
+  # Check ignore list first
+  if is_ignored "$rel"; then
+    echo -e "  ${BLUE}ignored${NC}  $rel  (in .claude-github-config-ignore)"
+    IGNORED=$((IGNORED + 1))
+    return
+  fi
 
   local new_content
   new_content=$(substitute < "$src")
@@ -177,26 +207,40 @@ apply_file() {
   echo -e "  ${YELLOW}conflict${NC} $rel (already exists — showing diff)"
   diff --color=always <(echo "$existing_content") <(echo "$new_content") | head -30 | sed 's/^/    /'
   echo ""
-  read -rp "    Overwrite? [y/N/d=full diff] " CHOICE
+  read -rp "    [o]verwrite / [s]kip / [i]gnore permanently / [d]iff full ? " CHOICE
   case "$CHOICE" in
-    [yY])
+    [oO])
       printf '%s' "$new_content" > "$dst"
       [[ "$src" == *.sh ]] && chmod +x "$dst"
       echo -e "    ${GREEN}overwritten${NC}"
       UPDATED=$((UPDATED + 1))
       ;;
+    [iI])
+      # Add to .claude-github-config-ignore
+      echo "$rel" >> "$IGNORE_FILE"
+      echo -e "    ${BLUE}added to .claude-github-config-ignore — will never be overwritten again${NC}"
+      IGNORED=$((IGNORED + 1))
+      ;;
     [dD])
       diff <(echo "$existing_content") <(echo "$new_content") | less
-      read -rp "    Overwrite now? [y/N] " CHOICE2
-      if [[ "$CHOICE2" =~ ^[yY]$ ]]; then
-        printf '%s' "$new_content" > "$dst"
-        [[ "$src" == *.sh ]] && chmod +x "$dst"
-        echo -e "    ${GREEN}overwritten${NC}"
-        UPDATED=$((UPDATED + 1))
-      else
-        echo -e "    ${YELLOW}skipped${NC}"
-        SKIPPED=$((SKIPPED + 1))
-      fi
+      read -rp "    [o]verwrite / [s]kip / [i]gnore permanently ? " CHOICE2
+      case "$CHOICE2" in
+        [oO])
+          printf '%s' "$new_content" > "$dst"
+          [[ "$src" == *.sh ]] && chmod +x "$dst"
+          echo -e "    ${GREEN}overwritten${NC}"
+          UPDATED=$((UPDATED + 1))
+          ;;
+        [iI])
+          echo "$rel" >> "$IGNORE_FILE"
+          echo -e "    ${BLUE}added to .claude-github-config-ignore${NC}"
+          IGNORED=$((IGNORED + 1))
+          ;;
+        *)
+          echo -e "    ${YELLOW}skipped${NC}"
+          SKIPPED=$((SKIPPED + 1))
+          ;;
+      esac
       ;;
     *)
       echo -e "    ${YELLOW}skipped${NC}"
@@ -219,7 +263,8 @@ echo -e "${BOLD}Done.${NC}"
 echo -e "  ${GREEN}created${NC}   $CREATED file(s)"
 echo -e "  ${GREEN}updated${NC}   $UPDATED file(s)"
 echo -e "  ok        $UNCHANGED file(s) unchanged"
-[ "$SKIPPED" -gt 0 ] && echo -e "  ${YELLOW}skipped${NC}   $SKIPPED file(s)"
+[ "$SKIPPED"  -gt 0 ] && echo -e "  ${YELLOW}skipped${NC}   $SKIPPED file(s)"
+[ "$IGNORED"  -gt 0 ] && echo -e "  ${BLUE}ignored${NC}   $IGNORED file(s)  (protected by .claude-github-config-ignore)"
 
 if [ "$CI_MODE" = false ]; then
   echo ""
@@ -228,23 +273,21 @@ if [ "$CI_MODE" = false ]; then
   echo -e "  ${BOLD}1. Fill in doc/PROJECT.md${NC}  ← do this first"
   echo "     Claude Code loads this file at every session start."
   echo "     Without it, the AI has no context about what this project is."
-  echo "     Open the file and complete the sections:"
-  echo "       - What is this project?"
-  echo "       - Architecture"
-  echo "       - Domain concepts"
-  echo "       - Key technical decisions"
   echo ""
   echo "  2. Add the PROJECT_PAT secret to your GitHub repo:"
   echo "     gh secret set PROJECT_PAT --repo $ORG/$REPO"
   echo ""
-  echo "  3. Verify your GitHub Project v2 board (#$PROJECT_NUMBER) has these Status columns:"
+  echo "  3. Add the CONFIG_PAT secret (read access to claude-github-config):"
+  echo "     gh secret set CONFIG_PAT --repo $ORG/$REPO"
+  echo ""
+  echo "  4. Verify your GitHub Project v2 board (#$PROJECT_NUMBER) has these Status columns:"
   echo "     Backlog → Ready → In progress → In review → Ready to deploy → Staging → Production → Done"
   echo ""
-  echo "  4. Fill in the tech stack setup section in CONTRIBUTING.md."
+  echo "  5. Fill in the tech stack setup section in CONTRIBUTING.md."
   echo ""
-  echo "  5. Create a CLAUDE.local.md (gitignored) with your personal Claude Code preferences."
+  echo "  6. Create a CLAUDE.local.md (gitignored) with your personal Claude Code preferences."
   echo ""
-  echo "  6. Commit the applied files:"
+  echo "  7. Commit the applied files:"
   echo "     git add . && git commit -m \"chore: apply claude-github-config\""
   echo ""
 fi
