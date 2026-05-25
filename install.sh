@@ -266,8 +266,8 @@ ensure_project_statuses() {
     return
   fi
 
-  local field_data
-  if ! field_data=$(gh api graphql -f query='
+  local field_data api_exit
+  field_data=$(gh api graphql -f query='
     query($org: String!, $number: Int!) {
       organization(login: $org) {
         projectV2(number: $number) {
@@ -281,17 +281,24 @@ ensure_project_statuses() {
         }
       }
     }
-  ' -F org="$ORG" -F number="$PROJECT_NUMBER" 2>/dev/null); then
-    echo -e "  ${YELLOW}warning${NC}  Cannot query project #${PROJECT_NUMBER} — check: gh auth status"
+  ' -F org="$ORG" -F number="$PROJECT_NUMBER" 2>/dev/null) || true
+  api_exit=$?
+
+  local project_id field_id
+  project_id=$(jq -r '.data.organization.projectV2.id // empty' <<<"$field_data" 2>/dev/null)
+  field_id=$(jq -r '.data.organization.projectV2.field.id // empty' <<<"$field_data" 2>/dev/null)
+
+  if [ -z "$project_id" ]; then
+    if [ $api_exit -ne 0 ] && [ -z "$field_data" ]; then
+      echo -e "  ${YELLOW}warning${NC}  Cannot reach GitHub API — check: gh auth status"
+    else
+      echo -e "  ${YELLOW}warning${NC}  Project #${PROJECT_NUMBER} not found in org ${ORG}"
+    fi
     return
   fi
 
-  local project_id field_id
-  project_id=$(jq -r '.data.organization.projectV2.id // empty' <<<"$field_data")
-  field_id=$(jq -r '.data.organization.projectV2.field.id // empty' <<<"$field_data")
-
-  if [ -z "$project_id" ] || [ -z "$field_id" ]; then
-    echo -e "  ${YELLOW}warning${NC}  Project #${PROJECT_NUMBER} not found or has no Status field"
+  if [ -z "$field_id" ]; then
+    echo -e "  ${YELLOW}warning${NC}  Project #${PROJECT_NUMBER} exists but has no Status field"
     return
   fi
 
@@ -411,7 +418,7 @@ if [ "$CI_MODE" = false ]; then
   echo "     gh secret set CONFIG_PAT --repo $ORG/$REPO"
   echo ""
   echo "  4. Verify your GitHub Project v2 board (#$PROJECT_NUMBER) has these Status columns:"
-  echo "     Backlog → Ready → In progress → In review → Ready to deploy → Staging → Production → Done"
+  echo "     Backlog → Ready → Blocked → In progress → In review → Ready to deploy → Staging → Production → Done"
   echo ""
   echo "  5. Fill in the tech stack setup section in CONTRIBUTING.md."
   echo ""
