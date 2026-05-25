@@ -711,31 +711,46 @@ Three placeholders are substituted at install time. They appear as `{{NAME}}` in
 
 ## 7. Keeping repos in sync
 
-When the `claude-github-config` template evolves, every repo that applied it can receive the updates automatically. The sync mechanism has three parts.
+Every repo configured with this tool includes an `update-config.yml` workflow. Each engineer decides independently when — and whether — to apply a new version of the configuration.
 
-### `repos.json` — the registry
+### How it works
+
+The update is **pull-based**: it is triggered from the target repo, not pushed from `claude-github-config`. The engineer responsible for the repo owns the decision.
+
+### `update-config.yml` — the update workflow
+
+Installed automatically in every repo by the installer:
 
 ```
-repos.json
+.github/workflows/update-config.yml
 ```
 
-A JSON array listing every INTO AI repo that uses this configuration:
+**Trigger:** manual — Actions tab → "Update Claude Code and GitHub configuration" → Run workflow  
+**Secret required:** `CONFIG_PAT` (see below)
 
-```json
-[
-  {
-    "org": "weareinto",
-    "repo": "ldl-voice-eval-agent",
-    "project_number": "15"
-  }
-]
+Steps:
+1. Clones the latest `claude-github-config` template.
+2. Runs `install.sh --ci` — applies all changed files without prompting.
+3. If files changed → creates a branch and opens a PR.
+4. If already up to date → logs a message, no PR.
+
+The engineer reviews the PR diff and merges (or closes to skip the update).
+
+### `CONFIG_PAT` — required secret
+
+`claude-github-config` is a private repo. Each target repo needs a secret to read it:
+
+> A **fine-grained PAT** with `Contents: read` on `weareinto/claude-github-config`.
+
+```bash
+gh secret set CONFIG_PAT --repo <org>/<repo>
 ```
 
-**When a new repo is configured**, add an entry here so it receives future updates automatically. This is the only manual step required to enrol a repo in the sync.
+This is a read-only token — it cannot write to `claude-github-config` or any other repo.
 
 ### `.claude-github-config.json` — local config in each target repo
 
-When `install.sh` runs, it saves the three installation values to a local file in the target repo:
+When `install.sh` runs interactively, it saves the three values to a local file:
 
 ```json
 {
@@ -745,79 +760,37 @@ When `install.sh` runs, it saves the three installation values to a local file i
 }
 ```
 
-This file:
-- Is read automatically on subsequent `install.sh` runs (skips re-prompting for known values)
-- Is required for `--ci` mode (non-interactive, used by `sync-repos.yml`)
-- Should be committed to the repo so the sync workflow can use it
+This file is read by `install.sh --ci` so the workflow knows which org/repo/board to use without prompting. **Commit this file** — without it the update workflow cannot run.
 
-### `sync-repos.yml` — the sync workflow
-
-**Trigger:** manual (`workflow_dispatch`) — you decide when to push updates  
-**Secret required:** `SYNC_PAT`
-
-The workflow is never triggered automatically. You run it from the GitHub Actions tab when you are ready to propose an update to one or all registered repos.
-
-**Optional input — `repo`:** name of a single repo to sync (e.g. `ldl-voice-eval-agent`). Leave blank to sync all repos in `repos.json`.
-
-For each targeted repo:
-1. Clones the repo.
-2. Runs `install.sh --ci` (non-interactive — applies all changed files).
-3. If files changed, creates a branch `chore/claude-github-config-sync-<sha>` and opens a PR.
-4. If nothing changed, logs "already up to date" and skips.
-
-The PR description explains what changed. The repo maintainer reviews and merges (or closes to stay on their current version). No repo is ever updated without a human decision.
-
-**How to trigger:**
-```bash
-# Sync all repos
-gh workflow run "Sync configuration to registered repos" --repo weareinto/claude-github-config
-
-# Sync a single repo
-gh workflow run "Sync configuration to registered repos"   --repo weareinto/claude-github-config   -f repo=ldl-voice-eval-agent
-```
-
-Or use the GitHub Actions tab: Actions → "Sync configuration to registered repos" → Run workflow.
-
-**`SYNC_PAT`** must be a fine-grained PAT with:
-- `Contents: write` — to push the update branch
-- `Pull requests: write` — to open the PR
-- Access to every repo listed in `repos.json`
-
-```bash
-gh secret set SYNC_PAT --repo weareinto/claude-github-config
-```
-
-### What `--ci` mode does differently
+### What `--ci` mode does
 
 In `--ci` mode, `install.sh`:
 - Reads all values from `.claude-github-config.json` (no prompts)
-- Overwrites changed files without asking
-- Skips the next-steps checklist at the end
+- Overwrites changed template files without asking
+- Skips the next-steps checklist
 
-This means files you have customized beyond the template defaults (e.g. `doc/PROJECT.md`, the tech stack section in `CONTRIBUTING.md`) **will be overwritten**. Review the PR diff carefully before merging.
+Files you have customized beyond the template defaults (e.g. `doc/PROJECT.md`, tech stack section in `CONTRIBUTING.md`) will appear in the PR diff. Review before merging — close the PR if you want to keep your version.
 
 ### The full update flow
 
 ```
 You update a skill or workflow in claude-github-config → push to main
               │
-              └─► You decide when to sync (manually)
+              └─► Each repo engineer decides when to update (independently)
                         │
-                        gh workflow run "Sync configuration to registered repos"
-                        (optionally with -f repo=<name> to target one repo)
+                        Actions tab → "Update Claude Code and GitHub configuration"
+                        → Run workflow
                         │
-                        └─► sync-repos.yml runs
+                        └─► update-config.yml runs in the target repo
+                                  ├── Clones latest claude-github-config
+                                  ├── Runs install.sh --ci
+                                  │     ├── Reads .claude-github-config.json
+                                  │     └── Applies changed template files
                                   │
-                                  For each targeted repo in repos.json:
-                                  ├── Clone repo
-                                  ├── Run install.sh --ci
-                                  │     ├── Read .claude-github-config.json
-                                  │     └── Apply all changed template files
-                                  │
-                                  ├── No changes → skip
-                                  └── Changes detected → push branch + open PR
+                                  ├── No changes → already up to date
+                                  └── Changes → opens PR on the repo
                                                 │
-                                                └─► Maintainer reviews diff
+                                                └─► Engineer reviews diff
                                                     → merge or close
 ```
 
