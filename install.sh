@@ -117,7 +117,9 @@ else
   fi
 
   if [ -z "$ORG" ]; then
-    read -rp "$(echo -e "${BOLD}GitHub organization${NC} (e.g. weareinto): ")" ORG
+    ORG="weareinto"
+    read -rp "$(echo -e "${BOLD}GitHub organization${NC} [${BOLD}weareinto${NC}]: ")" INPUT_ORG
+    [ -n "$INPUT_ORG" ] && ORG="$INPUT_ORG"
   fi
   if [ -z "$REPO" ]; then
     read -rp "$(echo -e "${BOLD}Repository name${NC} (e.g. my-project): ")" REPO
