@@ -711,42 +711,56 @@ Three placeholders are substituted at install time. They appear as `{{NAME}}` in
 
 ## 7. Keeping repos in sync
 
-Every repo configured with this tool includes an `update-config.yml` workflow. Each engineer decides independently when — and whether — to apply a new version of the configuration.
+Two separate concerns: **notification** (engineers learn a new version exists) and **update** (engineers apply it). They are intentionally decoupled — notification is automatic, update is always a human decision.
 
-### How it works
+---
 
-The update is **pull-based**: it is triggered from the target repo, not pushed from `claude-github-config`. The engineer responsible for the repo owns the decision.
+### Notification — `notify-repos.yml`
 
-### `update-config.yml` — the update workflow
+**Trigger:** push to `main` of `claude-github-config` when `template/**` or `install.sh` changes  
+**Secret required:** `NOTIFY_PAT`
 
-Installed automatically in every repo by the installer:
+On every new version, the workflow opens a GitHub issue in each repo listed in `repos.json`:
 
 ```
-.github/workflows/update-config.yml
+Title: chore: new claude-github-config version available
+Label: type:chore
 ```
 
-**Trigger:** manual — Actions tab → "Update Claude Code and GitHub configuration" → Run workflow  
-**Secret required:** `CONFIG_PAT` (see below)
+The issue body shows the commit, the list of changed files, and the exact steps to apply the update. If an open notification issue already exists in a repo, it is updated instead of creating a duplicate.
 
-Steps:
-1. Clones the latest `claude-github-config` template.
-2. Runs `install.sh --ci` — applies all changed files without prompting.
-3. If files changed → creates a branch and opens a PR.
-4. If already up to date → logs a message, no PR.
+**`repos.json`** — the notification registry:
 
-The engineer reviews the PR diff and merges (or closes to skip the update).
+```json
+[
+  { "org": "weareinto", "repo": "ldl-voice-eval-agent" },
+  { "org": "weareinto", "repo": "another-project" }
+]
+```
 
-### `CONFIG_PAT` — required secret
+Add a repo here when it is first configured so it receives future notifications. Remove it if the repo is archived or no longer using this config.
 
-`claude-github-config` is a private repo. Each target repo needs a secret to read it:
-
-> A **fine-grained PAT** with `Contents: read` on `weareinto/claude-github-config`.
+**`NOTIFY_PAT`** — a fine-grained PAT with `Issues: write` on every repo in `repos.json`:
 
 ```bash
-gh secret set CONFIG_PAT --repo <org>/<repo>
+gh secret set NOTIFY_PAT --repo weareinto/claude-github-config
 ```
 
-This is a read-only token — it cannot write to `claude-github-config` or any other repo.
+Without this secret the workflow logs a warning and skips — a missing PAT never blocks a push to `claude-github-config`.
+
+---
+
+### Update — `update-config.yml` (in each target repo)
+
+When the engineer sees the notification issue, they decide whether to apply the update:
+
+1. Go to **Actions** → **Update Claude Code and GitHub configuration** → **Run workflow**
+2. A PR opens with the changed files.
+3. Review the diff — merge to apply, close to skip.
+
+The issue can be closed manually at any time if the engineer decides not to update.
+
+---
 
 ### `.claude-github-config.json` — local config in each target repo
 
@@ -760,7 +774,19 @@ When `install.sh` runs interactively, it saves the three values to a local file:
 }
 ```
 
-This file is read by `install.sh --ci` so the workflow knows which org/repo/board to use without prompting. **Commit this file** — without it the update workflow cannot run.
+This file is read by `install.sh --ci` so the update workflow knows which org/repo/board to use without prompting. **Commit this file** — without it the update workflow cannot run.
+
+### `CONFIG_PAT` — required secret in each target repo
+
+`claude-github-config` is a private repo. Each target repo needs a secret to read it:
+
+> A **fine-grained PAT** with `Contents: read` on `weareinto/claude-github-config`.
+
+```bash
+gh secret set CONFIG_PAT --repo <org>/<repo>
+```
+
+---
 
 ### What `--ci` mode does
 
@@ -769,29 +795,27 @@ In `--ci` mode, `install.sh`:
 - Overwrites changed template files without asking
 - Skips the next-steps checklist
 
-Files you have customized beyond the template defaults (e.g. `doc/PROJECT.md`, tech stack section in `CONTRIBUTING.md`) will appear in the PR diff. Review before merging — close the PR if you want to keep your version.
+Files you have customized beyond the template defaults (e.g. `doc/PROJECT.md`, tech stack section in `CONTRIBUTING.md`) will appear in the PR diff. Review before merging.
 
-### The full update flow
+---
+
+### The full flow
 
 ```
-You update a skill or workflow in claude-github-config → push to main
+Push to main of claude-github-config (template/* or install.sh changed)
+    │
+    └─► notify-repos.yml opens/updates an issue in each repo in repos.json
               │
-              └─► Each repo engineer decides when to update (independently)
+              └─► Engineer sees the issue in their repo
                         │
-                        Actions tab → "Update Claude Code and GitHub configuration"
-                        → Run workflow
+                        ├─► Wants to update:
+                        │     Actions → "Update Claude Code and GitHub configuration"
+                        │     → Run workflow
+                        │     → PR opened with changes
+                        │     → Engineer reviews diff → merge or close PR
                         │
-                        └─► update-config.yml runs in the target repo
-                                  ├── Clones latest claude-github-config
-                                  ├── Runs install.sh --ci
-                                  │     ├── Reads .claude-github-config.json
-                                  │     └── Applies changed template files
-                                  │
-                                  ├── No changes → already up to date
-                                  └── Changes → opens PR on the repo
-                                                │
-                                                └─► Engineer reviews diff
-                                                    → merge or close
+                        └─► Doesn't want to update:
+                              Close the issue — no changes applied
 ```
 
 ---
