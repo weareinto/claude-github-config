@@ -1,0 +1,39 @@
+name: Auto-label issues
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply type label based on title prefix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.issue.title || "";
+            const existingLabels = (context.payload.issue.labels || []).map(l => l.name);
+            let label = null;
+
+            if (/^\[feature\]/i.test(title)) {
+              label = "type:feature";
+            } else if (/^\[bug\]/i.test(title)) {
+              label = "type:bug";
+            } else if (/^\[chore\]/i.test(title)) {
+              label = "type:chore";
+            } else if (/^\[research\]/i.test(title)) {
+              label = "type:research";
+            }
+
+            if (label && !existingLabels.includes(label)) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: [label],
+              });
+            }

@@ -1,0 +1,45 @@
+name: Assign PR to project and set In review
+
+# When a PR is opened or reopened, add it to the configured Project v2 and set
+# its Status to "In review". Uses the PROJECT_PAT org secret (fine-grained PAT,
+# project:write + repo:read). Without PROJECT_PAT the workflow no-ops with a warning.
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assign-pr-to-project-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on PROJECT_PAT
+        id: gate
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "${PROJECT_PAT}" ]; then
+            echo "::warning::PROJECT_PAT secret is not configured. Add a fine-grained PAT with 'project: write' + 'repo: read' scopes to enable auto-assignment. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v5
+
+      - name: Add PR to project and set In review
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+          PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+          ORG: {{ORG}}
+          PROJECT_NUMBER: "{{PROJECT_NUMBER}}"
+        run: bash .github/scripts/assign-pr-to-project.sh

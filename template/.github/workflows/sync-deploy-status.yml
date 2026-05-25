@@ -1,0 +1,65 @@
+name: Sync issue status on deploy
+
+# When code lands on a long-lived deployment branch (staging or production),
+# walk the new commits, find their merge PRs, and move every linked issue's
+# project card into the matching Status column on the Project board.
+#
+# Auth: needs a PAT with project:write + repo:read scopes, stored as PROJECT_PAT.
+# Without it the workflow no-ops with a warning.
+
+on:
+  push:
+    branches: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-deploy-status-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on PROJECT_PAT
+        id: gate
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "${PROJECT_PAT}" ]; then
+            echo "::warning::PROJECT_PAT secret is not configured. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target status from branch
+        if: steps.gate.outputs.skip != 'true'
+        id: status
+        run: |
+          case "${{ github.ref_name }}" in
+            staging)    echo "value=Staging"    >> "$GITHUB_OUTPUT" ;;
+            production) echo "value=Production" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::Unexpected branch '${{ github.ref_name }}'; this workflow only handles staging/production."
+              exit 1
+              ;;
+          esac
+
+      - name: Sync project status for linked issues
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          STATUS_NAME: ${{ steps.status.outputs.value }}
+          PROJECT_NUMBER: "{{PROJECT_NUMBER}}"
+          ORG: {{ORG}}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: bash .github/scripts/sync-deploy-status.sh

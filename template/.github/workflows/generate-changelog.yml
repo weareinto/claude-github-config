@@ -1,0 +1,135 @@
+name: Generate Changelog for Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 0.0.13)"
+        required: true
+        type: string
+      date:
+        description: "Release date (YYYY-MM-DD format, defaults to today)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install towncrier
+        run: pipx install towncrier
+
+      - name: Validate inputs
+        run: |
+          if ! [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must be in format X.Y.Z (e.g., 0.0.13)"
+            exit 1
+          fi
+          if [ -n "${{ inputs.date }}" ]; then
+            if ! date -d "${{ inputs.date }}" >/dev/null 2>&1; then
+              echo "Error: Date must be in YYYY-MM-DD format (e.g., 2026-04-26)"
+              exit 1
+            fi
+          fi
+
+      - name: Set release date
+        id: set_date
+        run: |
+          if [ -z "${{ inputs.date }}" ]; then
+            RELEASE_DATE="$(date +%Y-%m-%d)"
+          else
+            RELEASE_DATE="${{ inputs.date }}"
+          fi
+          echo "release_date=$RELEASE_DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Check fragments
+        id: check_fragments
+        run: |
+          FRAGMENT_COUNT="$(find changelog -maxdepth 1 -name '*.md' ! -name '_template.md.j2' | wc -l | tr -d ' ')"
+          echo "fragment_count=$FRAGMENT_COUNT" >> "$GITHUB_OUTPUT"
+          if [ "$FRAGMENT_COUNT" -eq 0 ]; then
+            echo "Error: No changelog fragments found in changelog/"
+            echo "Add fragments named <PR>.<type>.md (e.g., 42.added.md) and try again."
+            exit 1
+          fi
+          VALID_TYPES="added changed fixed deprecated removed other"
+          for file in changelog/*.md; do
+            [[ "$file" == "changelog/_template.md.j2" ]] && continue
+            filename="$(basename "$file")"
+            type="$(echo "$filename" | sed -E 's/^[0-9]+\.([a-z]+)(\.[0-9]+)?\.md$/\1/')"
+            if ! echo "$VALID_TYPES" | grep -wq "$type"; then
+              echo "Error: invalid fragment type in $filename (got '$type')."
+              echo "Valid types: $VALID_TYPES"
+              exit 1
+            fi
+          done
+          echo "Found $FRAGMENT_COUNT fragment(s)."
+
+      - name: Preview changelog
+        run: towncrier build --draft --version "${{ inputs.version }}" --date "${{ steps.set_date.outputs.release_date }}"
+
+      - name: Build changelog
+        run: towncrier build --version "${{ inputs.version }}" --date "${{ steps.set_date.outputs.release_date }}" --yes
+
+      - name: Inject compare link
+        run: bash .github/scripts/inject-compare-link.sh "${{ inputs.version }}" "${{ github.repository }}" CHANGELOG.md
+
+      - name: Bump src/backend/version.py
+        run: |
+          VERSION_FILE="src/backend/version.py"
+          if [ ! -f "$VERSION_FILE" ]; then
+            echo "Error: $VERSION_FILE not found."
+            exit 1
+          fi
+          sed -i -E 's/^__version__ = ".*"$/__version__ = "${{ inputs.version }}"/' "$VERSION_FILE"
+          if ! grep -q "^__version__ = \"${{ inputs.version }}\"$" "$VERSION_FILE"; then
+            echo "Error: failed to set __version__ in $VERSION_FILE. Current contents:"
+            cat "$VERSION_FILE"
+            exit 1
+          fi
+          echo "Bumped $VERSION_FILE to ${{ inputs.version }}."
+
+      - name: Open release PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: release v${{ inputs.version }}"
+          title: "chore: release v${{ inputs.version }}"
+          body: |
+            ## Release v${{ inputs.version }}
+
+            This PR was opened automatically by the **Generate Changelog for Release** workflow.
+
+            - **Version:** v${{ inputs.version }}
+            - **Date:** ${{ steps.set_date.outputs.release_date }}
+            - **Fragments rolled in:** ${{ steps.check_fragments.outputs.fragment_count }}
+
+            ### What this PR does
+
+            - Prepends the new release section to `CHANGELOG.md`
+            - Deletes the consumed fragment files in `changelog/`
+            - Adds the GitHub compare link to the new heading
+            - Bumps `src/backend/version.py` to `${{ inputs.version }}`
+
+            ### After merge
+
+            The `tag-on-release-merge.yml` workflow detects this PR (label `release`) and creates the annotated tag `v${{ inputs.version }}` on `main` HEAD. The tag annotation is the changelog entry text.
+          branch: changelog-${{ inputs.version }}
+          delete-branch: true
+          labels: |
+            release
