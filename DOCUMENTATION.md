@@ -577,6 +577,8 @@ Code deployed to production branch
 
 ## 5. Installation reference
 
+This tool applies configuration to **existing repositories**. It does not create new repos.
+
 ### Prerequisites
 
 - `git` 2.40+
@@ -585,15 +587,17 @@ Code deployed to production branch
 
 ### Run the installer
 
+From within the existing project you want to configure:
+
 ```bash
-# From within the target project directory:
+cd /path/to/your-project
 bash <(curl -fsSL https://raw.githubusercontent.com/weareinto/claude-github-config/main/install.sh)
 ```
 
 Or clone first and run locally:
 ```bash
 git clone https://github.com/weareinto/claude-github-config.git /tmp/cgc
-cd /path/to/my-project
+cd /path/to/your-project
 bash /tmp/cgc/install.sh
 ```
 
@@ -620,14 +624,25 @@ gh secret set PROJECT_PAT --repo <ORG>/<REPO>
 
 # 3. Fill in the tech stack setup in CONTRIBUTING.md (section "Quick start")
 
-# 4. Add CI workflow for your stack (.github/workflows/ci.yml) — not included in template
+# 4. Add CI workflow for your stack (.github/workflows/ci.yml) — not included
 
 # 5. Create CLAUDE.local.md (gitignored) with personal Claude Code preferences
 
 # 6. Commit the applied files
 git add .
-git commit -m "chore: apply claude-github-config template"
+git commit -m "chore: apply claude-github-config"
 ```
+
+### Updating an existing project
+
+Re-run the installer at any time to pick up changes from this repo:
+
+```bash
+cd /path/to/your-project
+bash <(curl -fsSL https://raw.githubusercontent.com/weareinto/claude-github-config/main/install.sh)
+```
+
+Files you have customized (e.g. `CONTRIBUTING.md` with your tech stack details) will show a diff — choose "skip" to keep your version.
 
 ---
 
