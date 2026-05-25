@@ -709,7 +709,100 @@ Three placeholders are substituted at install time. They appear as `{{NAME}}` in
 
 ---
 
-## 7. Maintenance guide
+## 7. Keeping repos in sync
+
+When the `claude-github-config` template evolves, every repo that applied it can receive the updates automatically. The sync mechanism has three parts.
+
+### `repos.json` — the registry
+
+```
+repos.json
+```
+
+A JSON array listing every INTO AI repo that uses this configuration:
+
+```json
+[
+  {
+    "org": "weareinto",
+    "repo": "ldl-voice-eval-agent",
+    "project_number": "15"
+  }
+]
+```
+
+**When a new repo is configured**, add an entry here so it receives future updates automatically. This is the only manual step required to enrol a repo in the sync.
+
+### `.claude-github-config.json` — local config in each target repo
+
+When `install.sh` runs, it saves the three installation values to a local file in the target repo:
+
+```json
+{
+  "org": "weareinto",
+  "repo": "my-project",
+  "project_number": "15"
+}
+```
+
+This file:
+- Is read automatically on subsequent `install.sh` runs (skips re-prompting for known values)
+- Is required for `--ci` mode (non-interactive, used by `sync-repos.yml`)
+- Should be committed to the repo so the sync workflow can use it
+
+### `sync-repos.yml` — the sync workflow
+
+**Trigger:** push to `main` of `claude-github-config`, when files in `template/` or `install.sh` change  
+**Secret required:** `SYNC_PAT`
+
+For each repo in `repos.json`:
+1. Clones the repo.
+2. Runs `install.sh --ci` (non-interactive — applies all changes without prompting).
+3. If files changed, creates a branch `chore/claude-github-config-sync-<sha>` and opens a PR.
+4. If nothing changed, skips.
+
+The PR description explains what changed and what to do. The repo maintainer reviews and merges (or closes if they want to stay on the current version).
+
+**`SYNC_PAT`** must be a fine-grained PAT with:
+- `Contents: write` — to push the update branch
+- `Pull requests: write` — to open the PR
+- Access to every repo listed in `repos.json`
+
+```bash
+gh secret set SYNC_PAT --repo weareinto/claude-github-config
+```
+
+### What `--ci` mode does differently
+
+In `--ci` mode, `install.sh`:
+- Reads all values from `.claude-github-config.json` (no prompts)
+- Overwrites changed files without asking
+- Skips the next-steps checklist at the end
+
+This means files you have customized beyond the template defaults (e.g. `doc/PROJECT.md`, the tech stack section in `CONTRIBUTING.md`) **will be overwritten**. Review the PR diff carefully before merging.
+
+### The full update flow
+
+```
+Push to main of claude-github-config (template/* or install.sh changed)
+    │
+    └─► sync-repos.yml runs
+          │
+          For each repo in repos.json:
+          ├── Clone repo
+          ├── Run install.sh --ci
+          │     ├── Read .claude-github-config.json (org, repo, project_number)
+          │     └── Apply all changed template files
+          │
+          ├── No changes → skip
+          └── Changes detected → push branch + open PR
+                │
+                └── Repo maintainer reviews diff → merge or close
+```
+
+---
+
+## 8. Maintenance guide
 
 ### When to update this template
 
