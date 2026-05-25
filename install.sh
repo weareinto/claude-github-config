@@ -49,7 +49,7 @@ if [ ! -d "$TEMPLATE_DIR" ]; then
 fi
 
 echo ""
-echo -e "${BOLD}=== claude-github-config installer ===${NC}"
+echo -e "${BOLD}=== INTO Claude-Github-Config Installer ===${NC}"
 echo ""
 echo -e "Target directory: ${BOLD}$TARGET_DIR${NC}"
 echo ""
@@ -118,7 +118,7 @@ else
 
   if [ -z "$ORG" ]; then
     ORG="weareinto"
-    read -rp "$(echo -e "${BOLD}GitHub organization${NC} [${BOLD}weareinto${NC}]: ")" INPUT_ORG
+    read -rp "$(echo -e "${BOLD}GitHub organization${NC} (press Enter to use ${BOLD}weareinto${NC}): ")" INPUT_ORG
     [ -n "$INPUT_ORG" ] && ORG="$INPUT_ORG"
   fi
   if [ -z "$REPO" ]; then
