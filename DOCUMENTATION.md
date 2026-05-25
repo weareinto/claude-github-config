@@ -752,16 +752,31 @@ This file:
 
 ### `sync-repos.yml` — the sync workflow
 
-**Trigger:** push to `main` of `claude-github-config`, when files in `template/` or `install.sh` change  
+**Trigger:** manual (`workflow_dispatch`) — you decide when to push updates  
 **Secret required:** `SYNC_PAT`
 
-For each repo in `repos.json`:
-1. Clones the repo.
-2. Runs `install.sh --ci` (non-interactive — applies all changes without prompting).
-3. If files changed, creates a branch `chore/claude-github-config-sync-<sha>` and opens a PR.
-4. If nothing changed, skips.
+The workflow is never triggered automatically. You run it from the GitHub Actions tab when you are ready to propose an update to one or all registered repos.
 
-The PR description explains what changed and what to do. The repo maintainer reviews and merges (or closes if they want to stay on the current version).
+**Optional input — `repo`:** name of a single repo to sync (e.g. `ldl-voice-eval-agent`). Leave blank to sync all repos in `repos.json`.
+
+For each targeted repo:
+1. Clones the repo.
+2. Runs `install.sh --ci` (non-interactive — applies all changed files).
+3. If files changed, creates a branch `chore/claude-github-config-sync-<sha>` and opens a PR.
+4. If nothing changed, logs "already up to date" and skips.
+
+The PR description explains what changed. The repo maintainer reviews and merges (or closes to stay on their current version). No repo is ever updated without a human decision.
+
+**How to trigger:**
+```bash
+# Sync all repos
+gh workflow run "Sync configuration to registered repos" --repo weareinto/claude-github-config
+
+# Sync a single repo
+gh workflow run "Sync configuration to registered repos"   --repo weareinto/claude-github-config   -f repo=ldl-voice-eval-agent
+```
+
+Or use the GitHub Actions tab: Actions → "Sync configuration to registered repos" → Run workflow.
 
 **`SYNC_PAT`** must be a fine-grained PAT with:
 - `Contents: write` — to push the update branch
@@ -784,20 +799,26 @@ This means files you have customized beyond the template defaults (e.g. `doc/PRO
 ### The full update flow
 
 ```
-Push to main of claude-github-config (template/* or install.sh changed)
-    │
-    └─► sync-repos.yml runs
-          │
-          For each repo in repos.json:
-          ├── Clone repo
-          ├── Run install.sh --ci
-          │     ├── Read .claude-github-config.json (org, repo, project_number)
-          │     └── Apply all changed template files
-          │
-          ├── No changes → skip
-          └── Changes detected → push branch + open PR
-                │
-                └── Repo maintainer reviews diff → merge or close
+You update a skill or workflow in claude-github-config → push to main
+              │
+              └─► You decide when to sync (manually)
+                        │
+                        gh workflow run "Sync configuration to registered repos"
+                        (optionally with -f repo=<name> to target one repo)
+                        │
+                        └─► sync-repos.yml runs
+                                  │
+                                  For each targeted repo in repos.json:
+                                  ├── Clone repo
+                                  ├── Run install.sh --ci
+                                  │     ├── Read .claude-github-config.json
+                                  │     └── Apply all changed template files
+                                  │
+                                  ├── No changes → skip
+                                  └── Changes detected → push branch + open PR
+                                                │
+                                                └─► Maintainer reviews diff
+                                                    → merge or close
 ```
 
 ---
