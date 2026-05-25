@@ -11,6 +11,7 @@ Every INTO AI project uses the same development workflow: structured GitHub issu
 | **Claude Code** (`.claude/`) | Permissions, hooks (branch and `.env` protection), and 8 workflow skills |
 | **GitHub** (`.github/`) | 4 issue templates, PR template, 8 Actions workflows, and 6 helper scripts |
 | **Contributing guide** | `CONTRIBUTING.md` — the single source of truth for the INTO AI development lifecycle |
+| **Project context** | `doc/PROJECT.md` — skeleton for describing what the project is; loaded by Claude Code at every session start |
 
 ### Claude Code skills installed
 

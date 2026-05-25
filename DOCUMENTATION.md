@@ -40,6 +40,8 @@ At INTO AI, every project follows the same development workflow: structured GitH
 |---|---|---|
 | **Claude Code** | `.claude/` | Controls how the AI agent behaves: what commands it can run, what files it can touch, and what skills it has access to |
 | **GitHub** | `.github/` | Automates the ticket → branch → PR → deploy → release lifecycle via Actions workflows |
+| **Project context** | `doc/PROJECT.md` | Skeleton loaded by `CLAUDE.md` at every session — describes what the project is, its architecture, domain concepts, and key decisions |
+| **Contributing guide** | `CONTRIBUTING.md` | Development lifecycle source of truth: issues, branching, PRs, releases |
 
 These two layers are designed to work together. Claude Code skills like `/branch` and `/pr-submit` call `gh` CLI commands that trigger GitHub Actions, which in turn move project board cards automatically.
 
@@ -123,6 +125,23 @@ This file lives at `.claude/settings.local.json` (gitignored) and can override a
 ```
 
 `defaultMode: bypassPermissions` disables all confirmation prompts locally. Use with care.
+
+---
+
+### 2.2b `CLAUDE.md` — session entry point
+
+```
+.claude/CLAUDE.md
+```
+
+Loaded automatically at every Claude Code session start. Its only job is to import two files as ambient context:
+
+```markdown
+@CONTRIBUTING.md   ← development lifecycle rules
+@doc/PROJECT.md    ← product and architecture context
+```
+
+**Important:** `doc/PROJECT.md` must exist in the target repo for this import to resolve. The template provides a skeleton with placeholder sections. Fill it in before starting development — Claude Code uses it to understand domain vocabulary, architectural patterns, and project-specific constraints without having to infer them from code.
 
 ---
 
