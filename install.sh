@@ -136,6 +136,75 @@ else
 fi
 
 echo ""
+validate_inputs
+
+# ---- Pre-flight validation -------------------------------------------------
+# Runs before any file is written. Stops immediately if gh is not
+# authenticated or if org / repo / project number don't exist on GitHub.
+
+validate_inputs() {
+  echo -e "${BOLD}Validating org, repo and project...${NC}"
+
+  # 1. gh CLI present?
+  if ! command -v gh &>/dev/null; then
+    echo -e "${RED}Error: gh CLI not found.${NC}"
+    echo "Install it: https://cli.github.com  then run: gh auth login"
+    exit 1
+  fi
+
+  # 2. gh authenticated?
+  if ! gh auth status &>/dev/null; then
+    echo -e "${RED}Error: gh CLI is not authenticated.${NC}"
+    echo "Run: gh auth login"
+    exit 1
+  fi
+
+  local errors=0
+
+  # 3. Org exists?
+  if ! gh api "orgs/$ORG" &>/dev/null; then
+    echo -e "  ${RED}✗${NC}  org '${BOLD}$ORG${NC}' — not found on GitHub"
+    errors=$((errors + 1))
+  else
+    echo -e "  ${GREEN}✓${NC}  org '${BOLD}$ORG${NC}'"
+  fi
+
+  # 4. Repo exists?
+  if ! gh api "repos/$ORG/$REPO" &>/dev/null; then
+    echo -e "  ${RED}✗${NC}  repo '${BOLD}$ORG/$REPO${NC}' — not found on GitHub"
+    errors=$((errors + 1))
+  else
+    echo -e "  ${GREEN}✓${NC}  repo '${BOLD}$ORG/$REPO${NC}'"
+  fi
+
+  # 5. Project exists?
+  local project_data project_id project_title
+  project_data=$(gh api graphql -f query='
+    query($org: String!, $number: Int!) {
+      organization(login: $org) {
+        projectV2(number: $number) { id title }
+      }
+    }
+  ' -F org="$ORG" -F number="$PROJECT_NUMBER" 2>/dev/null) || true
+
+  project_id=$(jq -r '.data.organization.projectV2.id // empty' <<<"$project_data" 2>/dev/null)
+  project_title=$(jq -r '.data.organization.projectV2.title // empty' <<<"$project_data" 2>/dev/null)
+
+  if [ -z "$project_id" ]; then
+    echo -e "  ${RED}✗${NC}  project #${BOLD}$PROJECT_NUMBER${NC} — not found in org '$ORG'"
+    errors=$((errors + 1))
+  else
+    echo -e "  ${GREEN}✓${NC}  project #${BOLD}$PROJECT_NUMBER${NC} '${project_title}'"
+  fi
+
+  if [ "$errors" -gt 0 ]; then
+    echo ""
+    echo -e "${RED}Aborted: $errors error(s) above. Correct the values and try again.${NC}"
+    exit 1
+  fi
+
+  echo ""
+}
 
 # ---- Save config for future runs -------------------------------------------
 
