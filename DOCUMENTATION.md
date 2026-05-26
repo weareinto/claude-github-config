@@ -27,8 +27,10 @@ At INTO AI, every project follows the same development workflow: structured GitH
    - [Helper scripts](#34-helper-scripts)
 4. [The complete lifecycle](#4-the-complete-lifecycle)
 5. [Installation reference](#5-installation-reference)
-6. [Placeholder reference](#6-placeholder-reference)
-7. [Maintenance guide](#7-maintenance-guide)
+6. [What the update does and does not touch](#6-what-the-update-does-and-does-not-touch)
+7. [Placeholder reference](#7-placeholder-reference)
+8. [Keeping repos in sync](#8-keeping-repos-in-sync)
+9. [Maintenance guide](#9-maintenance-guide)
 
 ---
 
@@ -629,24 +631,31 @@ bash /tmp/cgc/install.sh
 
 ### What the installer does
 
-1. Verifies the target directory is a git repository.
-2. Prompts for three values: `ORG`, `REPO`, `PROJECT_NUMBER`.
+1. Prompts for `ORG` (default: `weareinto`), `REPO`, and `PROJECT_NUMBER`.
+2. **Pre-flight validation** — before writing any file, verifies via `gh` API that:
+   - The org exists on GitHub.
+   - The repo exists in that org.
+   - The GitHub Project board number exists in that org.
+   If any check fails, the installer stops immediately with a clear error message.
 3. Walks every file in `template/` and for each:
    - Substitutes `{{ORG}}`, `{{REPO}}`, `{{PROJECT_NUMBER}}` in the file content.
-   - If the destination file does not exist → creates it.
+   - If the destination file does not exist → creates it (even if the file is listed in `.claude-github-config-ignore`).
+   - If it already exists and is listed in `.claude-github-config-ignore` → skips it (protects customizations).
    - If it already exists and content is identical → reports "ok", no write.
-   - If it already exists and content differs → shows a diff (truncated to 30 lines) and asks: overwrite / skip / show full diff.
+   - If it already exists and content differs → shows a diff (truncated to 30 lines) and asks: overwrite / skip / ignore permanently / show full diff.
 4. Sets `chmod +x` on `.sh` files automatically.
-5. Prints a summary and next-steps checklist.
+5. **Verifies GitHub Project status columns** — checks that the board has all 9 required columns. Missing columns are added automatically:
+   `Backlog → Ready → Blocked → In progress → In review → Ready to deploy → Staging → Production → Done`
+6. Prints a summary and next-steps checklist.
 
 ### After installation
 
 ```bash
-# 1. Add the PROJECT_PAT secret (fine-grained PAT: project:write + repo:read)
-gh secret set PROJECT_PAT --repo <ORG>/<REPO>
+# 1. Fill in doc/PROJECT.md — Claude Code loads this at every session start.
+#    Without it, the AI has no context about what the project is.
 
-# 2. Verify the GitHub Project board has the required Status columns:
-#    Backlog → Ready → In progress → In review → Ready to deploy → Staging → Production → Done
+# 2. Add the PROJECT_PAT secret (fine-grained PAT: project:write + repo:read)
+gh secret set PROJECT_PAT --repo <ORG>/<REPO>
 
 # 3. Fill in the tech stack setup in CONTRIBUTING.md (section "Quick start")
 
@@ -658,6 +667,9 @@ gh secret set PROJECT_PAT --repo <ORG>/<REPO>
 git add .
 git commit -m "chore: apply claude-github-config"
 ```
+
+> **Note:** The installer automatically verifies and adds missing GitHub Project status columns.
+> No manual step needed for the board setup.
 
 ### Updating an existing project
 
