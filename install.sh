@@ -460,6 +460,95 @@ INNEREOF
   rm -f "$mut_file"
 }
 
+
+# ---- Tech stack setup (CONTRIBUTING.md) ------------------------------------
+# Interactive only. Asks which stacks the project uses and replaces the
+# TECH_STACK_SETUP_PLACEHOLDER marker in the installed CONTRIBUTING.md.
+
+setup_tech_stack() {
+  [ "$CI_MODE" = true ] && return
+
+  local contributing="$TARGET_DIR/CONTRIBUTING.md"
+  [ -f "$contributing" ] || return
+  grep -q "TECH_STACK_SETUP_PLACEHOLDER" "$contributing" || return
+
+  echo ""
+  echo -e "${BOLD}Tech stack setup${NC}"
+  echo "Which stacks does this project use? Enter numbers separated by spaces."
+  echo ""
+  echo "  1) Python   (pyenv + uv)"
+  echo "  2) Node     (nvm + npm)"
+  echo "  3) Go       (go mod)"
+  echo "  4) Docker   (docker compose)"
+  echo "  5) Skip — I'll fill in CONTRIBUTING.md manually"
+  echo ""
+  read -rp "Your choice (e.g. 1 4): " STACK_CHOICES
+
+  # Build the code block via Python to avoid heredoc escaping issues
+  local tmp_block
+  tmp_block=$(CHOICES="$STACK_CHOICES" python3 << 'INNEREOF'
+import os
+
+STACKS = {
+    "1": ("Python", [
+        "pyenv install          # version pinned in .python-version",
+        "uv sync                # install dependencies",
+        "cp .env.example .env   # fill in the values",
+    ]),
+    "2": ("Node", [
+        "nvm use                # version pinned in .nvmrc",
+        "npm install",
+        "cp .env.example .env   # fill in the values",
+    ]),
+    "3": ("Go", [
+        "go mod download",
+        "cp .env.example .env   # fill in the values",
+    ]),
+    "4": ("Docker", [
+        "docker compose up -d",
+        "cp .env.example .env   # fill in the values",
+    ]),
+}
+
+choices = os.environ.get("CHOICES", "").split()
+blocks = []
+for c in choices:
+    if c == "5":
+        break
+    if c in STACKS:
+        name, lines = STACKS[c]
+        block = "# " + name + "\n" + "\n".join(lines)
+        blocks.append(block)
+
+if not blocks:
+    print("SKIP")
+else:
+    print("```bash")
+    print("\n\n".join(blocks))
+    print("```")
+INNEREOF
+  )
+
+  if [ "$tmp_block" = "SKIP" ] || [ -z "$tmp_block" ]; then
+    echo -e "  ${YELLOW}skipped${NC}  CONTRIBUTING.md — fill in the tech stack section manually"
+    return
+  fi
+
+  # Replace the placeholder in CONTRIBUTING.md
+  BLOCK="$tmp_block" CONTRIBUTING="$contributing" python3 << 'INNEREOF'
+import os
+block = os.environ["BLOCK"]
+path  = os.environ["CONTRIBUTING"]
+with open(path) as f:
+    content = f.read()
+content = content.replace("<!-- TECH_STACK_SETUP_PLACEHOLDER -->", block)
+with open(path, "w") as f:
+    f.write(content)
+INNEREOF
+
+  echo -e "  ${GREEN}updated${NC}  CONTRIBUTING.md — tech stack section filled in"
+}
+
 # ---- Walk the template directory and apply every file ----------------------
 
 while IFS= read -r -d '' src_file; do
@@ -467,6 +556,7 @@ while IFS= read -r -d '' src_file; do
   apply_file "$src_file" "$rel"
 done < <(find "$TEMPLATE_DIR" -type f -print0 | sort -z)
 
+setup_tech_stack
 ensure_project_statuses
 
 # ---- Summary ---------------------------------------------------------------
