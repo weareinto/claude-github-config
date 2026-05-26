@@ -598,7 +598,7 @@ if [ "$CI_MODE" = false ]; then
   echo ""
   echo -e "${BOLD}Next steps:${NC}"
   echo ""
-  echo -e "  See the post-installation checklist in the documentation:"
-  echo -e "  ${BLUE}https://github.com/weareinto/claude-github-config/blob/main/DOCUMENTATION.md#after-installation${NC}"
+  echo -e "  See the configuration reference installed in this repo:"
+  echo -e "  ${BLUE}doc/claude-github-config.md${NC}"
   echo ""
 fi
