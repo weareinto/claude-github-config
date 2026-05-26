@@ -260,10 +260,8 @@ apply_file() {
     return
   fi
 
-  # Preserve trailing newlines — bash $(...) strips them; use sentinel trick.
   local new_content
-  new_content=$(substitute < "$src"; printf x)
-  new_content="${new_content%x}"
+  new_content=$(substitute < "$src")
 
   mkdir -p "$dst_dir"
 
@@ -276,8 +274,7 @@ apply_file() {
   fi
 
   local existing_content
-  existing_content="$(cat "$dst"; printf x)"
-  existing_content="${existing_content%x}"
+  existing_content="$(cat "$dst")"
 
   if [ "$new_content" = "$existing_content" ]; then
     echo -e "  ok       $rel"
