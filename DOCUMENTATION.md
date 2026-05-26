@@ -357,7 +357,7 @@ The checklist is the last gate before requesting a review. Reviewers can see at 
 
 ### 3.3 Workflows
 
-Nine workflows cover the complete lifecycle. All use `ubuntu-latest` runners.
+Nine workflows cover the complete lifecycle. All use `ubuntu-latest` runners. Eight are described below; `update-config.yml` (the self-update workflow installed in each target repo) is covered in [§8 Keeping repos in sync](#8-keeping-repos-in-sync).
 
 #### `auto-label.yml`
 
