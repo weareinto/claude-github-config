@@ -18,8 +18,8 @@ Create a new GitHub issue from one of this repo's templates, or rewrite an exist
 Examples:
 - `/issue` — create a new issue, ask for the type.
 - `/issue --type feature` — create a new feature issue, unassigned.
-- `/issue --type bug --assignee qutaiba` — create a bug assigned to `qutaiba`.
-- `/issue --type chore --assignee qutaiba,mehdimehni` — create a chore co-assigned.
+- `/issue --type bug --assignee alice` — create a bug assigned to `alice`.
+- `/issue --type chore --assignee alice,bob` — create a chore co-assigned.
 - `/issue 123` — update existing issue #123, infer type from its label, leave assignees as-is.
 - `/issue 123 --assignee @me` — reassign #123 to the current user.
 - `/issue 123 --type bug` — update #123 and switch its type to bug (re-label and reshape the body).

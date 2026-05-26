@@ -5,8 +5,7 @@ name: Update Claude Code and GitHub configuration
 #
 # Trigger: Actions tab → "Update Claude Code and GitHub configuration" → Run workflow
 #
-# Requires secret CONFIG_PAT: a fine-grained PAT with Contents:read on
-# weareinto/claude-github-config. Without it the workflow fails with a clear error.
+# No auth needed — weareinto/claude-github-config is a public repository.
 
 on:
   workflow_dispatch:
@@ -19,25 +18,13 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: Gate on CONFIG_PAT
-        env:
-          CONFIG_PAT: ${{ secrets.CONFIG_PAT }}
-        run: |
-          if [ -z "${CONFIG_PAT}" ]; then
-            echo "::error::CONFIG_PAT is not configured."
-            echo "Add a fine-grained PAT with 'Contents: read' on weareinto/claude-github-config as a repo secret."
-            exit 1
-          fi
-
       - name: Checkout this repo
         uses: actions/checkout@v5
 
       - name: Fetch latest claude-github-config
-        env:
-          CONFIG_PAT: ${{ secrets.CONFIG_PAT }}
         run: |
           git clone --quiet --depth 1 \
-            "https://x-access-token:${CONFIG_PAT}@github.com/weareinto/claude-github-config.git" \
+            https://github.com/weareinto/claude-github-config.git \
             /tmp/claude-github-config
 
       - name: Apply configuration (CI mode)
