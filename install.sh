@@ -691,7 +691,7 @@ if [ "$CI_MODE" = false ] || [ -n "$BATCH_ACTION" ]; then
     if [ "$CI_MODE" = false ] && [ -z "$BATCH_ACTION" ]; then
       if [ "${#_conflict_files[@]}" -gt 1 ]; then
         read -rp "  [a]pply all / [s]kip all / [p]ick individually [default] ? " _choice
-        case "${_choice,,}" in
+        case "$(echo "$_choice" | tr '[:upper:]' '[:lower:]')" in
           a) BATCH_ACTION="a" ;;
           s) BATCH_ACTION="s" ;;
         esac
@@ -724,7 +724,7 @@ echo -e "  ok        $UNCHANGED file(s) unchanged"
 
 [ "$INSTALL_MODE" = "skills-only" ] && echo -e "  ${BLUE}mode${NC}      skills & hooks only"
 
-if [ "$CI_MODE" = false ]; then
+if [ "$CI_MODE" = false ] && [ "$INSTALL_MODE" != "skills-only" ]; then
   echo ""
   echo -e "${BOLD}Next steps:${NC}"
   echo ""
