@@ -73,10 +73,39 @@ Backlog → Ready → Blocked → In progress → In review → Ready to deploy 
 
 ## After installation
 
-| Step | Action |
-|---|---|
-| 1 | **Fill in `doc/PROJECT.md`** — Claude Code loads this at every session. Without it the AI has no project context. |
-| 2 | Verify the project board ([#{{PROJECT_NUMBER}}](https://github.com/orgs/{{ORG}}/projects/{{PROJECT_NUMBER}})) has all 9 Status columns — the installer creates any that are missing. |
-| 3 | Fill in the tech stack section in `CONTRIBUTING.md` (or re-run the installer interactively). |
-| 4 | Create `CLAUDE.local.md` (gitignored) with your personal Claude Code preferences. |
-| 5 | Commit the installed files: `git add . && git commit -m "chore: apply claude-github-config"` |
+Complete these steps in order before starting development.
+
+**1. Fill in `doc/PROJECT.md`**
+
+The most critical file — Claude Code loads it at every session. Without it the AI has no project context.
+
+Fill in the 6 sections yourself, or ask Claude Code:
+> *"fill in doc/PROJECT.md based on what you know about this project"*
+
+**2. Fill in `CONTRIBUTING.md` — tech stack**
+
+Re-run the installer interactively (`bash install.sh`) and pick your stacks, or edit the section manually.
+
+**3. Fill in `CONTRIBUTING.md` — section 9 repo structure**
+
+Ask Claude Code:
+> *"document the repo structure for section 9 of CONTRIBUTING.md"*
+
+**4. Fill in `CLAUDE.local.md`**
+
+The installer created a skeleton. Add your personal Claude Code preferences (language, workflow rules, context). This file is gitignored — it is never committed.
+
+**5. Add GitHub secrets**
+
+```bash
+gh secret set PROJECT_PAT --repo {{ORG}}/{{REPO}}   # fine-grained PAT: project:write + repo:read
+gh secret set CONFIG_PAT  --repo {{ORG}}/{{REPO}}   # read access to weareinto/claude-github-config
+```
+
+Without `PROJECT_PAT`, the board-automation workflows (`checklist-to-ready`, `assign-pr-to-project`, `sync-deploy-status`) will no-op silently.
+
+**6. Commit**
+
+```bash
+git add . && git commit -m "chore: apply claude-github-config"
+```
