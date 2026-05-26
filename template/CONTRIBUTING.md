@@ -232,10 +232,3 @@ Helper scripts: [`.github/scripts/`](.github/scripts/).
 ### Project board automation (PROJECT_PAT)
 
 `sync-deploy-status.yml`, `checklist-to-ready.yml`, `assign-pr-to-project.yml`, and `inject-design-section.yml` need the **`PROJECT_PAT`** secret — a fine-grained PAT with `project: write` + `repo: read` scopes. Without that secret each workflow no-ops with a warning.
-
----
-
-## 9. Repo structure
-
-<!-- Fill this in once the project structure is established.
-     Run: ask Claude Code "document the repo structure for CONTRIBUTING.md" -->

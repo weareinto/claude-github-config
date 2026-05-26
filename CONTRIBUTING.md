@@ -237,32 +237,3 @@ Helper scripts: [`.github/scripts/`](.github/scripts/).
 ### Project board automation (PROJECT_PAT)
 
 `sync-deploy-status.yml`, `checklist-to-ready.yml`, `assign-pr-to-project.yml`, and `inject-design-section.yml` need the **`PROJECT_PAT`** secret — a fine-grained PAT with `project: write` + `repo: read` scopes. Without that secret each workflow no-ops with a warning.
-
----
-
-## 9. Repo structure
-
-```
-/
-├── README.md
-├── CLAUDE.md                   # Claude Code entry point (imports CONTRIBUTING + PROJECT)
-├── CONTRIBUTING.md             # This file — workflow source of truth
-├── DOCUMENTATION.md            # Full reference documentation
-├── install.sh                  # The installer — sole production artifact
-├── template/                   # Files deployed into target repos by install.sh
-│   ├── .claude/                # Skills, hooks, settings
-│   ├── .github/                # Workflows, issue/PR templates, helper scripts
-│   ├── .claude-github-config-ignore
-│   ├── CONTRIBUTING.md         # Template version (placeholders substituted at install time)
-│   └── doc/
-│       ├── PROJECT.md          # Blank project context template
-│       └── claude-github-config.md  # Reference doc template
-├── tests/
-│   ├── install.bats            # bats-core test suite (25 tests)
-│   └── README.md
-├── .claude/                    # Claude Code config for THIS repo
-├── .github/                    # Workflows for THIS repo
-└── doc/
-    ├── PROJECT.md              # Project context for THIS repo (gitignore-protected)
-    └── claude-github-config.md # Reference doc with substituted values
-```
