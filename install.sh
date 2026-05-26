@@ -181,6 +181,9 @@ else
       ORG=""
       REPO=""
       PROJECT_NUMBER=""
+    else
+      echo ""
+      echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
     fi
   fi
 
@@ -196,11 +199,14 @@ else
     read -rp "$(echo -e "${BOLD}GitHub Project board number${NC} (e.g. 15): ")" PROJECT_NUMBER
   fi
 
-  echo ""
-  echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
-  echo ""
-  read -rp "Proceed? [y/N] " CONFIRM
-  [[ "$CONFIRM" =~ ^[yY]$ ]] || { echo "Aborted."; exit 0; }
+  # Only ask "Proceed?" when values were entered manually (not confirmed from saved config)
+  if [ -z "${USE_SAVED:-}" ] || [[ "$USE_SAVED" =~ ^[nN]$ ]]; then
+    echo ""
+    echo -e "  ORG=${BOLD}$ORG${NC}  REPO=${BOLD}$REPO${NC}  PROJECT_NUMBER=${BOLD}$PROJECT_NUMBER${NC}"
+    echo ""
+    read -rp "Proceed? [y/N] " CONFIRM
+    [[ "$CONFIRM" =~ ^[yY]$ ]] || { echo "Aborted."; exit 0; }
+  fi
 fi
 
 echo ""
