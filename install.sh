@@ -544,6 +544,56 @@ INNEREOF
   echo -e "  ${GREEN}updated${NC}  CONTRIBUTING.md — tech stack section filled in"
 }
 
+
+# ---- Create CLAUDE.local.md (personal preferences) -------------------------
+# Interactive only. Generates a gitignored CLAUDE.local.md with personal
+# Claude Code preferences (language, notes).
+
+setup_claude_local() {
+  [ "$CI_MODE" = true ] && return
+
+  local claude_local="$TARGET_DIR/CLAUDE.local.md"
+
+  if [ -f "$claude_local" ]; then
+    echo -e "  ok       CLAUDE.local.md already exists — skipping"
+    return
+  fi
+
+  echo ""
+  echo -e "${BOLD}Personal Claude Code preferences (CLAUDE.local.md)${NC}"
+  echo ""
+  echo "  1) French  — Claude always responds in French"
+  echo "  2) English — Claude always responds in English"
+  echo "  3) Skip    — I'll create it manually later"
+  echo ""
+  read -rp "Preferred language for Claude responses: " LANG_CHOICE
+
+  local lang_line=""
+  case "$LANG_CHOICE" in
+    1) lang_line="Always respond in French." ;;
+    2) lang_line="Always respond in English." ;;
+    3) echo -e "  ${YELLOW}skipped${NC}  CLAUDE.local.md — create it manually when needed"
+       return ;;
+    *) echo -e "  ${YELLOW}skipped${NC}  CLAUDE.local.md — unrecognised choice"
+       return ;;
+  esac
+
+  cat > "$claude_local" << MDEOF
+# Personal Claude Code preferences
+# This file is gitignored — your local settings only, never committed.
+
+## Language
+
+$lang_line
+
+## Personal notes
+
+<!-- Add any personal context, reminders, or workflow rules here. -->
+MDEOF
+
+  echo -e "  ${GREEN}created${NC}  CLAUDE.local.md"
+}
+
 # ---- Walk the template directory and apply every file ----------------------
 
 while IFS= read -r -d '' src_file; do
@@ -552,6 +602,7 @@ while IFS= read -r -d '' src_file; do
 done < <(find "$TEMPLATE_DIR" -type f -print0 | sort -z)
 
 setup_tech_stack
+setup_claude_local
 ensure_project_statuses
 
 # ---- Summary ---------------------------------------------------------------
