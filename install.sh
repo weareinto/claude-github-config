@@ -559,32 +559,9 @@ setup_claude_local() {
     return
   fi
 
-  echo ""
-  echo -e "${BOLD}Personal Claude Code preferences (CLAUDE.local.md)${NC}"
-  echo ""
-  echo "  1) French  — Claude always responds in French"
-  echo "  2) English — Claude always responds in English"
-  echo "  3) Skip    — I'll create it manually later"
-  echo ""
-  read -rp "Preferred language for Claude responses: " LANG_CHOICE
-
-  local lang_line=""
-  case "$LANG_CHOICE" in
-    1) lang_line="Always respond in French." ;;
-    2) lang_line="Always respond in English." ;;
-    3) echo -e "  ${YELLOW}skipped${NC}  CLAUDE.local.md — create it manually when needed"
-       return ;;
-    *) echo -e "  ${YELLOW}skipped${NC}  CLAUDE.local.md — unrecognised choice"
-       return ;;
-  esac
-
-  cat > "$claude_local" << MDEOF
+  cat > "$claude_local" << 'MDEOF'
 # Personal Claude Code preferences
 # This file is gitignored — your local settings only, never committed.
-
-## Language
-
-$lang_line
 
 ## Personal notes
 
