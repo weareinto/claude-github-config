@@ -1,118 +1,61 @@
-# Project Context — claude-github-config
+# Project Overview
 
-> This file is loaded automatically by Claude Code at every session start (via `CLAUDE.md`).
-> For the development *workflow* (branching, PRs, releases), see `CONTRIBUTING.md`.
+What this repo is — product, architecture, business rules. For workflow rules (issues, branches, PRs, releases), see [`/CONTRIBUTING.md`](../CONTRIBUTING.md).
 
----
+## What we're building
 
-## What is this project?
+Internal tooling that deploys the standard INTO AI development configuration onto any repository in minutes. A single `bash <(curl ...)` command installs Claude Code skills, GitHub Actions workflows, hooks, issue/PR templates, and a contributing guide — all pre-wired to the INTO AI project board workflow.
 
-`claude-github-config` is a template installer that bootstraps any GitHub repository with a
-Claude Code-optimized development workflow. A single `install.sh` script deploys a curated set
-of configuration files — Claude Code skills, pre-commit hooks, GitHub Actions workflows, issue
-templates, and a PR template — all pre-wired to work together out of the box.
-
-The target user is a developer or team that uses Claude Code as their primary AI coding assistant
-and wants a structured, ticket-driven workflow on GitHub: branch-per-issue discipline, automated
-project board transitions, AI-assisted PR descriptions, and a consistent release process.
-
----
+- **Client:** INTO AI internal engineering teams
+- **Execution team:** INTO AI (weareinto)
+- **Commercial partner (if any):** —
 
 ## Architecture
 
-Single-file installer — no build system, no package manager, no server.
+This repo is a **template installer**, not a service. There is no runtime component.
 
-```
-install.sh              ← sole entry point; run via curl | bash or locally
-template/               ← source of truth for all installed files
-  .claude/              ← skills, hooks, settings installed into target repos
-  .github/              ← workflows, issue/PR templates installed into target repos
-  CONTRIBUTING.md       ← workflow template (with {{ORG}}/{{REPO}}/{{PROJECT_NUMBER}})
-  doc/                  ← PROJECT.md template + reference doc template
-tests/
-  install.bats          ← bats-core test suite (25 tests)
-```
+- **`install.sh`** — the sole production artifact. Bash script that walks `template/`, substitutes `{{ORG}}`, `{{REPO}}`, `{{PROJECT_NUMBER}}` placeholders, and copies files into the target repo. Handles conflicts interactively (diff + prompt) or silently in CI (`--ci` flag). Idempotent.
 
-`install.sh` flow:
-1. Parse flags (`--ci`, `--batch-apply`, `--batch-skip`)
-2. Validate GitHub org / repo / project via `gh` CLI
-3. Cache `.claude-github-config-ignore` patterns in memory
-4. Pre-scan template for conflicts; show list + batch prompt in interactive mode
-5. Walk `template/` and apply each file (create / ok / skip / overwrite)
-6. `setup_tech_stack` — interactive only; fills in the tech stack section of CONTRIBUTING.md
-7. `setup_claude_local` — interactive only; creates `CLAUDE.local.md`
-8. `ensure_project_statuses` — creates any missing Status columns on the GitHub Project board
+- **`template/`** — the file tree deployed into target repos:
+  - `.claude/` — Claude Code settings, hooks (protect-main, protect-env), and 8 skills
+  - `.github/` — 4 issue templates, PR template, 8 Actions workflows, 6 helper scripts
+  - `CONTRIBUTING.md` — the INTO AI development lifecycle (single source of truth)
+  - `doc/PROJECT.md` — blank project context skeleton, loaded by Claude Code at session start
 
-Dependencies: `bash` 4+, `git`, `gh` (GitHub CLI), `python3`, `jq`, `sed`.
+- **`tests/`** — bats-core test suite (25 tests) covering install.sh behaviour: fresh install, idempotency, CI mode, ignore list, batch conflict handling, project status columns.
 
----
+- **No build step, no dependencies, no runtime.** The only external tools required are `bash`, `git`, `gh`, `python3`, `jq`, and `sed`.
 
-## Domain concepts
+## Key domain concepts
 
-- **template** — directory tree of files to install; substitutes `{{ORG}}`, `{{REPO}}`,
-  `{{PROJECT_NUMBER}}` in every file
-- **target repo** — the user's GitHub repository where `install.sh` is executed
-- **ignore list** (`.claude-github-config-ignore`) — per-target-repo file listing glob patterns
-  of files the installer must never overwrite; cached in `IGNORED_PATTERNS[]` before the file walk
-- **skill** (`.claude/skills/*/SKILL.md`) — markdown file that teaches Claude Code a workflow
-  command, invoked with `/skill-name` in Claude Code chat
-- **hook** (`.claude/hooks/*.sh`) — bash script that fires on Claude Code `PreToolUse` events
-  (e.g. `protect-main.sh` blocks edits on `main`)
-- **CI mode** (`--ci`) — non-interactive: reads config from `.claude-github-config.json`,
-  overwrites all conflicts silently
-- **batch mode** (`--batch-apply` / `--batch-skip`) — non-interactive conflict resolution without
-  the full CI behaviour (e.g. still creates `CLAUDE.local.md`)
+- **Template** — the `template/` directory. Everything inside gets deployed verbatim (after placeholder substitution) into the target repo.
+- **Target repo** — the INTO AI project repository where `install.sh` is run.
+- **Placeholder** — `{{ORG}}`, `{{REPO}}`, `{{PROJECT_NUMBER}}` — substituted by `install.sh` at deploy time via `sed`.
+- **Ignore list** — `.claude-github-config-ignore` in the target repo. Files listed here are never overwritten by re-runs or the `update-config.yml` workflow. Patterns are cached in memory before the file walk so the ignore file itself cannot clobber user entries mid-run.
+- **CI mode** (`--ci`) — non-interactive mode used by the `update-config.yml` GitHub workflow. Reads values from `.claude-github-config.json`, overwrites all conflicts silently.
+- **Batch mode** (`--batch-apply` / `--batch-skip`) — apply or skip all conflicts at once without per-file prompts. Shown as an interactive choice (`[a]pply all / [s]kip all / [p]ick individually`) when multiple conflicts are detected.
+- **Project board** — a GitHub Project v2 board linked to the target repo. Required columns: `Backlog → Ready → Blocked → In progress → In review → Ready to deploy → Staging → Production → Done`. The installer auto-creates any missing columns.
 
----
+## Technology stack
 
-## Key technical decisions
+- **Language / tooling:** Bash (install.sh), bats-core (tests)
+- **Key platforms / libraries:** GitHub Actions, GitHub Project v2 GraphQL API, `gh` CLI, `jq`, `python3` (JSON parsing), `sed` (placeholder substitution)
 
-- **No dependencies beyond standard Unix tools** — installer is a single bash script runnable via
-  `curl | bash`; zero install step for users
-- **`python3` for JSON config** — `python3 -c "import json; ..."` used to read/write
-  `.claude-github-config.json`; more portable than requiring `jq` for config
-- **`jq` only for GitHub API responses** — `gh api graphql` returns JSON that jq parses; its exit
-  code 5 (invalid JSON) is a known signal for API errors
-- **Ignore patterns cached before file walk** — `IGNORED_PATTERNS=()` array loaded by
-  `load_ignore_patterns` before the `while ... find` loop so the template version of
-  `.claude-github-config-ignore` can overwrite the disk file mid-walk without losing user entries
-- **Trailing newlines stripped by bash `$()`** — command substitution strips trailing newlines;
-  both `new_content` and `existing_content` are compared without trailing newlines, making the
-  idempotency check reliable across platforms
-- **bats-core** for tests — shell-script testing framework; tests live in `tests/install.bats`;
-  mock `gh` binary written per-test into a temp dir prepended to `PATH`
+Vendor candidates or decisions still open:
 
----
+| Component | Options / Decision |
+|-----------|--------------------|
+| — | — |
 
-## External dependencies and integrations
+## Critical business rules
 
-- **GitHub CLI (`gh`)** — validates org/repo/project, calls GitHub GraphQL API for Project v2
-  board management; mocked in tests via a per-test fake binary
-- **GitHub Project v2** — project board with a `Status` single-select field;
-  `ensure_project_statuses` reads existing options and creates any of the 9 required columns that
-  are missing
-- **`update-config.yml`** workflow (in each installed repo) — runs `install.sh --ci` on a
-  schedule or manually to pull the latest template changes
+- **`install.sh` is the only production artifact.** Everything in `template/` is data, not code. Never add logic to template files.
+- **Idempotency is non-negotiable.** Re-running install.sh on an already-configured repo must produce no changes unless the template has actually changed.
+- **User customizations are never silently lost.** Files that differ from the template always trigger a diff + prompt (interactive) or are listed in the conflict summary (batch). The ignore list provides permanent protection.
+- **`doc/PROJECT.md` in the template stays blank.** It must be a skeleton — the engineer fills it in for each project. Never put project-specific content in the template version.
+- **All placeholder substitution happens at install time via `sed`.** No runtime templating, no environment variables at execution time in the installed files.
 
----
+## Specifications
 
-## What Claude Code should know
-
-- `install.sh` is the sole production artifact — no Makefile, no build system
-- Run tests with: `bats tests/install.bats` (requires `brew install bats-core` on macOS)
-- `template/` is the source of truth; changes to installed file behaviour go there
-- **Edit tool is blocked on this repo when the CWD's git branch is `main`** — the
-  `protect-main.sh` hook checks `git rev-parse --abbrev-ref HEAD` of the *CWD*, which Claude Code
-  resets to `ldl-voice-eval-agent` (on `main`) between tool calls. Always use Python to write
-  files when the Edit tool is blocked:
-  ```python
-  python3 - << 'PYEOF'
-  path = "/path/to/file"
-  with open(path) as f: content = f.read()
-  content = content.replace(old, new)
-  with open(path, "w") as f: f.write(content)
-  '''PYEOF'''
-  ```
-- `doc/PROJECT.md` and `CONTRIBUTING.md` are in `.claude-github-config-ignore` — they will
-  never be overwritten by `install.sh --ci` or the `update-config.yml` workflow
-- `template/doc/PROJECT.md` is the blank template shipped to new users; keep it generic
+- [`DOCUMENTATION.md`](../DOCUMENTATION.md) — full reference: every hook, skill, workflow, script, placeholder, and maintenance guide
+- [`tests/README.md`](../tests/README.md) — how to install bats-core and run the test suite
