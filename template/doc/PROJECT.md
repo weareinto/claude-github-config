@@ -1,53 +1,54 @@
-# Project Context — {{REPO}}
+# Project Overview
 
-> This file is loaded automatically by Claude Code at every session start (via `CLAUDE.md`).
-> Fill it in before starting development. Keep it up to date as the project evolves.
-> For the development *workflow* (branching, PRs, releases), see `CONTRIBUTING.md`.
+What this repo is — product, architecture, business rules. For workflow rules (issues, branches, PRs, releases), see [`/CONTRIBUTING.md`](../CONTRIBUTING.md).
 
----
+## What we're building
 
-## What is this project?
+<!-- 1-2 sentences: what does this product do and for whom?
+     Include: client / end-users, execution team, commercial partner if any. -->
 
-<!-- 1-2 paragraphs. What does this product do? Who uses it? What problem does it solve? -->
-
----
+- **Client:**
+- **Execution team:**
+- **Commercial partner (if any):**
 
 ## Architecture
 
-<!-- High-level description of the system components and how they connect.
-     Example: backend API, frontend, database, external services.
-     A simple diagram or bullet list is fine. -->
+<!-- Describe each major component:
+     - its role (what it does)
+     - how it connects to the others
+     - key technology choices that are locked in
+     A bullet list per component is fine. -->
 
----
+## Key domain concepts
 
-## Domain concepts
-
-<!-- Key terms and entities specific to this project. Helps Claude Code use the right
-     vocabulary and understand the business logic without having to infer it from code.
+<!-- Terms and entities specific to this project that Claude Code needs to
+     understand to write and review code correctly.
      Example:
      - **Session** — a single evaluation run initiated by a candidate
      - **Criterion** — a scoring dimension applied to a session -->
 
----
+## Technology stack
 
-## Key technical decisions
+<!-- List languages, frameworks, and tooling in use. -->
 
-<!-- Decisions that affect how Claude Code should write or review code in this project.
-     Example: "We use async SQLAlchemy everywhere", "All API responses follow JSON:API spec",
-     "Authentication is handled by Supabase, not our own JWT". -->
+- **Language / tooling:**
+- **Key platforms / libraries:**
 
----
+Vendor candidates or decisions still open:
 
-## External dependencies and integrations
+| Component | Options / Decision |
+|-----------|--------------------|
+|           |                    |
 
-<!-- Third-party services, APIs, or platforms this project depends on.
-     Include links to relevant docs if useful. -->
+## Critical business rules
 
----
+<!-- Rules that must never be violated — constraints that affect every
+     implementation decision Claude Code makes on this project. -->
 
-## What Claude Code should know
+- <!-- e.g. "All AI outputs must be human-validated before delivery" -->
 
-<!-- Anything else that helps Claude Code be a better contributor on this project:
-     - Patterns to follow or avoid
-     - Known gotchas
-     - Files or modules that are especially sensitive -->
+## Specifications
+
+<!-- Links to spec documents in doc/specs/ or external sources.
+     Example:
+     - [`doc/specs/SOW.md`](specs/SOW.md) — Statement of Work -->
