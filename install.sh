@@ -273,7 +273,7 @@ if [ "$CI_MODE" = false ]; then
     echo -e "${BOLD}Existing Claude Code configuration detected.${NC}"
     echo ""
     echo -e "  ${BOLD}1)${NC} Full reinstall   — apply all template files (may overwrite your config)"
-    echo -e "  ${BOLD}2)${NC} Skills & hooks   — update only .claude/skills/ and .claude/hooks/"
+    echo -e "  ${BOLD}2)${NC} Skills & hooks   — update .claude/skills/, .claude/hooks/ and doc/"
     echo ""
     read -rp "  Your choice [1/2, default: 2]: " _mode_choice
     case "${_mode_choice}" in
@@ -306,7 +306,7 @@ apply_file() {
   # Skills-only mode: process only .claude/skills/ and .claude/hooks/
   if [ "$INSTALL_MODE" = "skills-only" ]; then
     case "$rel" in
-      .claude/skills/*|.claude/hooks/*) ;;
+      .claude/skills/*|.claude/hooks/*|doc/*) ;;
       *) return 0 ;;
     esac
   fi
@@ -671,7 +671,7 @@ if [ "$CI_MODE" = false ] || [ -n "$BATCH_ACTION" ]; then
     [ -f "$_dst" ] || continue
     if [ "$INSTALL_MODE" = "skills-only" ]; then
       case "$_rel" in
-        .claude/skills/*|.claude/hooks/*) ;;
+        .claude/skills/*|.claude/hooks/*|doc/*) ;;
         *) continue ;;
       esac
     fi
@@ -722,7 +722,7 @@ echo -e "  ok        $UNCHANGED file(s) unchanged"
 [ "$SKIPPED"  -gt 0 ] && echo -e "  ${YELLOW}skipped${NC}   $SKIPPED file(s)"
 [ "$IGNORED"  -gt 0 ] && echo -e "  ${BLUE}ignored${NC}   $IGNORED file(s)  (protected by .claude-github-config-ignore)"
 
-[ "$INSTALL_MODE" = "skills-only" ] && echo -e "  ${BLUE}mode${NC}      skills & hooks only"
+[ "$INSTALL_MODE" = "skills-only" ] && echo -e "  ${BLUE}mode${NC}      skills & hooks & doc only"
 
 if [ "$CI_MODE" = false ] && [ "$INSTALL_MODE" != "skills-only" ]; then
   echo ""
