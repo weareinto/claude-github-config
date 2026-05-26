@@ -1,0 +1,51 @@
+name: Move card to Ready when checklist is complete
+
+# When an issue's "Ready Checklist" boxes are all ticked, promote the issue's
+# project card from Backlog → Ready on the configured Project v2. Cards already
+# past Backlog are left alone, so a tick toggle never resets progress.
+#
+# Auth: needs the PROJECT_PAT org secret (fine-grained PAT, project:write + repo:read).
+# Without it the workflow no-ops with a warning rather than failing the issue edit.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: checklist-to-ready-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on PROJECT_PAT
+        id: gate
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "${PROJECT_PAT}" ]; then
+            echo "::warning::PROJECT_PAT secret is not configured. Add a fine-grained PAT with 'project: write' + 'repo: read' scopes to enable Backlog → Ready auto-promotion. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v5
+
+      - name: Promote Backlog → Ready if checklist is complete
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ORG: weareinto
+          PROJECT_NUMBER: "22"
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          FROM_STATUS: Backlog
+          TO_STATUS: Ready
+        run: bash .github/scripts/checklist-to-ready.sh

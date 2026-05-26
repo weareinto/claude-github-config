@@ -1,0 +1,18 @@
+# .claude-github-config-ignore
+#
+# Files listed here are never overwritten when running the claude-github-config
+# update workflow or re-running install.sh.
+#
+# Use this to protect files you have intentionally customized beyond the
+# template defaults. Glob patterns are supported (e.g. .claude/skills/my-skill/*).
+#
+# Examples:
+#   doc/PROJECT.md                          ← project-specific, always custom
+#   CONTRIBUTING.md                         ← if you've added tech stack details
+#   .claude/settings.json                   ← if you've added allowed commands
+#   .github/workflows/checklist-to-ready.yml ← if you've modified the workflow
+#
+# Files you ADD to the repo (not in the template) are never touched regardless
+# of this file — the installer only processes files that exist in the template.
+
+doc/PROJECT.md

@@ -1,0 +1,41 @@
+name: Inject design section when needs:design is added
+
+# When the needs:design label is added to an issue, inject a ## Design/Mockup
+# section and a checklist item into the issue body. If the card is already
+# past Backlog on the project board, post a warning comment instead.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: inject-design-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  inject:
+    if: github.event.label.name == 'needs:design'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on PROJECT_PAT
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+        run: |
+          if [ -z "${PROJECT_PAT}" ]; then
+            echo "::warning::PROJECT_PAT secret is not configured. Project status check will be skipped."
+          fi
+
+      - uses: actions/checkout@v5
+
+      - name: Inject Design/Mockup section and checklist item
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ORG: weareinto
+          PROJECT_NUMBER: "22"
+        run: bash .github/scripts/inject-design-section.sh

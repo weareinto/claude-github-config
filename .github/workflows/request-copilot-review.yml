@@ -1,0 +1,41 @@
+name: Request Copilot code review on new PRs
+
+# Automatically adds Copilot as a reviewer on every new or reopened PR so
+# that every change gets a Copilot review without any manual step.
+#
+# Prerequisite: Copilot code review must be enabled on the repository
+# (Settings → Copilot → Code review). Without it the API call returns 422
+# and the workflow logs a warning rather than failing the PR.
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+concurrency:
+  group: request-copilot-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  request-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Copilot review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ERROR=$(gh api \
+            repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers \
+            --method POST \
+            --field 'reviewers[]=copilot' 2>&1) && {
+            echo "Copilot review requested on PR #${{ github.event.pull_request.number }}."
+          } || {
+            if echo "$ERROR" | grep -qiE "422|Unprocessable|not enabled"; then
+              echo "::warning::Copilot code review is not enabled on this repository. Enable it under Settings → Copilot → Code review."
+            else
+              echo "::error::Unexpected error requesting Copilot review: $ERROR"
+              exit 1
+            fi
+          }
