@@ -384,7 +384,10 @@ PYEOF
   # Customise a file and add it to the ignore list
   local target_file="$TARGET_DIR/.claude/CLAUDE.md"
   printf '\nMY_CUSTOM_LINE\n' >> "$target_file"
-  echo ".claude/CLAUDE.md" >> "$TARGET_DIR/.claude-github-config-ignore"
+  # Use printf to guarantee a newline separator before the entry
+  # (installed files strip trailing newlines via bash $(...), so echo alone
+  #  would merge the entry with the previous line)
+  printf '\n.claude/CLAUDE.md\n' >> "$TARGET_DIR/.claude-github-config-ignore"
 
   # Second install: ignored file must be left untouched
   _install_ci
