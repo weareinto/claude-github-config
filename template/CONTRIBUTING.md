@@ -237,15 +237,5 @@ Helper scripts: [`.github/scripts/`](.github/scripts/).
 
 ## 9. Repo structure
 
-```
-/
-├── CLAUDE.md              # Claude Code entry point (loads CONTRIBUTING + PROJECT)
-├── CONTRIBUTING.md        # This file — workflow source of truth
-├── CHANGELOG.md           # Generated at release time — do not edit manually
-├── changelog/             # Per-PR changelog fragments (one file per PR)
-├── .claude/               # Claude Code harness: settings, hooks, skills
-├── .github/               # Issue templates, PR template, workflows, scripts
-└── doc/
-    ├── PROJECT.md         # Product context (architecture, domain, business rules)
-    └── specs/             # External specs and reference documents
-```
+<!-- Fill this in once the project structure is established.
+     Run: ask Claude Code "document the repo structure for CONTRIBUTING.md" -->
