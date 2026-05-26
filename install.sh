@@ -542,6 +542,8 @@ with open(path, "w") as f:
 INNEREOF
 
   echo -e "  ${GREEN}updated${NC}  CONTRIBUTING.md — tech stack section filled in"
+  # Protect CONTRIBUTING.md from future updates overwriting the tech stack
+  grep -qxF "CONTRIBUTING.md" "$IGNORE_FILE" 2>/dev/null || echo "CONTRIBUTING.md" >> "$IGNORE_FILE"
 }
 
 
