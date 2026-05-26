@@ -20,8 +20,6 @@ Install:
 
 - `git` 2.40+
 - `gh` (GitHub CLI) 2.40+ — run `gh auth login` (HTTPS, scopes: `repo`, `workflow`, `project`, `read:org`)
-- `make` — GNU Make, used to run the targets defined in the repo's `Makefile`
-
 ```bash
 # Testing (requires bats-core)
 brew install bats-core        # macOS — install once
