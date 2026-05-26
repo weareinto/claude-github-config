@@ -62,22 +62,30 @@ if ! git -C "$TARGET_DIR" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 
 # ---- Load ignore list ------------------------------------------------------
-# Files in .claude-github-config-ignore are never overwritten by the installer.
+# Patterns are cached into IGNORED_PATTERNS before the file walk begins.
+# This ensures the user's existing .claude-github-config-ignore is respected
+# even if the installer later overwrites that file with the template version.
+
+IGNORED_PATTERNS=()
+
+load_ignore_patterns() {
+  IGNORED_PATTERNS=()
+  [ -f "$IGNORE_FILE" ] || return 0
+  while IFS= read -r pattern || [ -n "$pattern" ]; do
+    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
+    IGNORED_PATTERNS+=("$pattern")
+  done < "$IGNORE_FILE"
+}
 
 is_ignored() {
   local rel="$1"
-  if [ ! -f "$IGNORE_FILE" ]; then
-    return 1
-  fi
-  while IFS= read -r pattern || [ -n "$pattern" ]; do
-    # Skip empty lines and comments
-    [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-    # Simple glob match against the relative path
+  local pattern
+  for pattern in "${IGNORED_PATTERNS[@]+"${IGNORED_PATTERNS[@]}"}"; do
     # shellcheck disable=SC2254
     case "$rel" in
       $pattern) return 0 ;;
     esac
-  done < "$IGNORE_FILE"
+  done
   return 1
 }
 
@@ -252,8 +260,10 @@ apply_file() {
     return
   fi
 
+  # Preserve trailing newlines — bash $(...) strips them; use sentinel trick.
   local new_content
-  new_content=$(substitute < "$src")
+  new_content=$(substitute < "$src"; printf x)
+  new_content="${new_content%x}"
 
   mkdir -p "$dst_dir"
 
@@ -266,7 +276,8 @@ apply_file() {
   fi
 
   local existing_content
-  existing_content="$(cat "$dst")"
+  existing_content="$(cat "$dst"; printf x)"
+  existing_content="${existing_content%x}"
 
   if [ "$new_content" = "$existing_content" ]; then
     echo -e "  ok       $rel"
@@ -311,6 +322,7 @@ apply_file() {
           ;;
         [iI])
           echo "$rel" >> "$IGNORE_FILE"
+          IGNORED_PATTERNS+=("$rel")
           echo -e "    ${BLUE}added to .claude-github-config-ignore${NC}"
           IGNORED=$((IGNORED + 1))
           ;;
@@ -547,6 +559,7 @@ INNEREOF
     # Ensure file ends with a newline before appending
     [ -s "$IGNORE_FILE" ] && [ "$(tail -c1 "$IGNORE_FILE" | wc -l)" -eq 0 ] && echo "" >> "$IGNORE_FILE"
     echo "CONTRIBUTING.md" >> "$IGNORE_FILE"
+    IGNORED_PATTERNS+=("CONTRIBUTING.md")
   fi
 }
 
@@ -578,6 +591,8 @@ MDEOF
 }
 
 # ---- Walk the template directory and apply every file ----------------------
+
+load_ignore_patterns
 
 while IFS= read -r -d '' src_file; do
   rel="${src_file#$TEMPLATE_DIR/}"

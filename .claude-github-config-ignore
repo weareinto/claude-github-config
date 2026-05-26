@@ -16,3 +16,9 @@
 # of this file — the installer only processes files that exist in the template.
 
 doc/PROJECT.mdCONTRIBUTING.md
+.claude-github-config-ignore
+CONTRIBUTING.md
+.claude/skills/claude-code-docs/SKILL.md
+.claude/skills/claude-code-docs/hooks-reference.md
+.claude/skills/claude-code-docs/mcp-reference.md
+.claude/skills/claude-code-docs/rules-reference.md
