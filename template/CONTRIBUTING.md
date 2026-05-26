@@ -22,7 +22,27 @@ Install:
 - `gh` (GitHub CLI) 2.40+ — run `gh auth login` (HTTPS, scopes: `repo`, `workflow`, `project`, `read:org`)
 - `make` — GNU Make, used to run the targets defined in the repo's `Makefile`
 
-<!-- TODO: add your project's tech stack setup steps here (language runtime, package manager, Docker, etc.) -->
+<!-- ──────────────────────────────────────────────────────────────────────────
+     TODO (engineer): replace this block with your project's setup steps.
+     Examples below — pick what applies, delete what doesn't.
+     ──────────────────────────────────────────────────────────────────────── -->
+
+```bash
+# Example — Python project
+pyenv install 3.12   # or use the version in .python-version
+uv sync              # install dependencies
+cp .env.example .env # then fill in the values
+
+# Example — Node project
+nvm use
+npm install
+cp .env.example .env
+
+# Example — Docker project
+docker compose up -d
+```
+
+<!-- ──────────────────────────────────────────────────────────────────────── -->
 
 ---
 
