@@ -238,6 +238,31 @@ CREATED=0
 UPDATED=0
 UNCHANGED=0
 
+# ---- Install mode: detect existing Claude Code config ----------------------
+# If .claude/settings.json or .claude/CLAUDE.md already exist, offer a
+# "skills & hooks only" mode so the user doesn't accidentally overwrite
+# a hand-tuned configuration.
+
+INSTALL_MODE="full"
+
+if [ "$CI_MODE" = false ]; then
+  if [ -f "$TARGET_DIR/.claude/settings.json" ] || [ -f "$TARGET_DIR/.claude/CLAUDE.md" ]; then
+    echo ""
+    echo -e "${BOLD}Existing Claude Code configuration detected.${NC}"
+    echo ""
+    echo -e "  ${BOLD}1)${NC} Full reinstall   — apply all template files (may overwrite your config)"
+    echo -e "  ${BOLD}2)${NC} Skills & hooks   — update only .claude/skills/ and .claude/hooks/"
+    echo ""
+    read -rp "  Your choice [1/2, default: 2]: " _mode_choice
+    case "${_mode_choice}" in
+      1) INSTALL_MODE="full"        ;;
+      *) INSTALL_MODE="skills-only" ;;
+    esac
+    unset _mode_choice
+    echo ""
+  fi
+fi
+
 # ---- Substitution function -------------------------------------------------
 
 substitute() {
@@ -255,6 +280,14 @@ apply_file() {
   local dst="$TARGET_DIR/$rel"
   local dst_dir
   dst_dir="$(dirname "$dst")"
+
+  # Skills-only mode: process only .claude/skills/ and .claude/hooks/
+  if [ "$INSTALL_MODE" = "skills-only" ]; then
+    case "$rel" in
+      .claude/skills/*|.claude/hooks/*) ;;
+      *) return 0 ;;
+    esac
+  fi
 
   # Only protect files that already exist — never block initial creation.
   if [ -f "$dst" ] && is_ignored "$rel"; then
@@ -489,8 +522,8 @@ setup_tech_stack() {
   [ "$CI_MODE" = true ] && return
 
   local contributing="$TARGET_DIR/CONTRIBUTING.md"
-  [ -f "$contributing" ] || return
-  grep -q "TECH_STACK_SETUP_PLACEHOLDER" "$contributing" || return
+  [ -f "$contributing" ] || return 0
+  grep -q "TECH_STACK_SETUP_PLACEHOLDER" "$contributing" || return 0
 
   echo ""
   echo -e "${BOLD}Tech stack setup${NC}"
@@ -612,6 +645,12 @@ if [ "$CI_MODE" = false ] || [ -n "$BATCH_ACTION" ]; then
     _dst="$TARGET_DIR/$_rel"
     is_ignored "$_rel" && continue
     [ -f "$_dst" ] || continue
+    if [ "$INSTALL_MODE" = "skills-only" ]; then
+      case "$_rel" in
+        .claude/skills/*|.claude/hooks/*) ;;
+        *) continue ;;
+      esac
+    fi
     _nc=$(substitute < "$_src")
     _ec=$(cat "$_dst")
     [ "$_nc" != "$_ec" ] && _conflict_files+=("$_rel")
@@ -658,6 +697,8 @@ echo -e "  ${GREEN}updated${NC}   $UPDATED file(s)"
 echo -e "  ok        $UNCHANGED file(s) unchanged"
 [ "$SKIPPED"  -gt 0 ] && echo -e "  ${YELLOW}skipped${NC}   $SKIPPED file(s)"
 [ "$IGNORED"  -gt 0 ] && echo -e "  ${BLUE}ignored${NC}   $IGNORED file(s)  (protected by .claude-github-config-ignore)"
+
+[ "$INSTALL_MODE" = "skills-only" ] && echo -e "  ${BLUE}mode${NC}      skills & hooks only"
 
 if [ "$CI_MODE" = false ]; then
   echo ""
