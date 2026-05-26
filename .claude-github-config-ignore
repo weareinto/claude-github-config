@@ -15,4 +15,4 @@
 # Files you ADD to the repo (not in the template) are never touched regardless
 # of this file — the installer only processes files that exist in the template.
 
-doc/PROJECT.md
+doc/PROJECT.mdCONTRIBUTING.md
