@@ -478,9 +478,8 @@ setup_tech_stack() {
   echo ""
   echo "  1) Python   (pyenv + uv)"
   echo "  2) Node     (nvm + npm)"
-  echo "  3) Go       (go mod)"
-  echo "  4) Docker   (docker compose)"
-  echo "  5) Skip — I'll fill in CONTRIBUTING.md manually"
+  echo "  3) Docker   (docker compose)"
+  echo "  4) Skip — I'll fill in CONTRIBUTING.md manually"
   echo ""
   read -rp "Your choice (e.g. 1 4): " STACK_CHOICES
 
@@ -500,11 +499,7 @@ STACKS = {
         "npm install",
         "cp .env.example .env   # fill in the values",
     ]),
-    "3": ("Go", [
-        "go mod download",
-        "cp .env.example .env   # fill in the values",
-    ]),
-    "4": ("Docker", [
+    "3": ("Docker", [
         "docker compose up -d",
         "cp .env.example .env   # fill in the values",
     ]),
@@ -513,7 +508,7 @@ STACKS = {
 choices = os.environ.get("CHOICES", "").split()
 blocks = []
 for c in choices:
-    if c == "5":
+    if c == "4":
         break
     if c in STACKS:
         name, lines = STACKS[c]
