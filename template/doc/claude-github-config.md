@@ -51,7 +51,7 @@ Hooks fire automatically before every file operation — no manual step needed.
 
 ## Project board
 
-Board: [Project #{{PROJECT_NUMBER}}](https://github.com/orgs/{{ORG}}/projects/{{PROJECT_NUMBER}})
+Board: [Project #20](https://github.com/orgs/weareinto/projects/20)
 
 ```
 Backlog → Ready → Blocked → In progress → In review → Ready to deploy → Staging → Production → Done
@@ -102,7 +102,7 @@ gh secret set PROJECT_PAT --repo {{ORG}}/{{REPO}}   # fine-grained PAT: project:
 gh secret set CONFIG_PAT  --repo {{ORG}}/{{REPO}}   # read access to weareinto/claude-github-config
 ```
 
-Without `PROJECT_PAT`, the board-automation workflows (`checklist-to-ready`, `assign-pr-to-project`, `sync-deploy-status`) will no-op silently.
+
 
 **6. Commit**
 
