@@ -439,3 +439,40 @@ PYEOF
   echo "$output" | grep -qF "Missing:"
   echo "$output" | grep -qF "Blocked"
 }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. BATCH CONFLICT HANDLING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@test "batch: --batch-skip preserves all conflicted files" {
+  _install_ci
+  [ "$status" -eq 0 ]
+
+  # Modify two template-managed files
+  printf '\nMY_CHANGE\n' >> "$TARGET_DIR/CONTRIBUTING.md"
+  printf '\nMY_CHANGE\n' >> "$TARGET_DIR/.github/copilot-instructions.md"
+
+  run bash -c "cd '$TARGET_DIR' && bash '$INSTALL_SH' --batch-skip 2>&1"
+  [ "$status" -eq 0 ]
+
+  # Both modifications must be preserved
+  grep -qF "MY_CHANGE" "$TARGET_DIR/CONTRIBUTING.md"
+  grep -qF "MY_CHANGE" "$TARGET_DIR/.github/copilot-instructions.md"
+}
+
+@test "batch: --batch-skip output lists every conflicted file" {
+  _install_ci
+  [ "$status" -eq 0 ]
+
+  printf '\nMY_CHANGE\n' >> "$TARGET_DIR/CONTRIBUTING.md"
+  printf '\nMY_CHANGE\n' >> "$TARGET_DIR/.github/copilot-instructions.md"
+
+  run bash -c "cd '$TARGET_DIR' && bash '$INSTALL_SH' --batch-skip 2>&1"
+  [ "$status" -eq 0 ]
+
+  # Summary line must mention the count
+  echo "$output" | grep -qE "[0-9]+ file\(s\) differ from the template"
+  # Both file names must appear in the conflict list
+  echo "$output" | grep -qF "CONTRIBUTING.md"
+  echo "$output" | grep -qF "copilot-instructions.md"
+}
