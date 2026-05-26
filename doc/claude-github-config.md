@@ -76,8 +76,7 @@ Backlog → Ready → Blocked → In progress → In review → Ready to deploy 
 | Step | Action |
 |---|---|
 | 1 | **Fill in `doc/PROJECT.md`** — Claude Code loads this at every session. Without it the AI has no project context. |
-| 2 | Add the `CONFIG_PAT` secret (read access to `weareinto/claude-github-config`): `gh secret set CONFIG_PAT --repo weareinto/claude-github-config` |
-| 3 | Verify the project board ([#22](https://github.com/orgs/weareinto/projects/22)) has all 9 Status columns — the installer creates any that are missing. |
-| 4 | Fill in the tech stack section in `CONTRIBUTING.md` (or re-run the installer interactively). |
-| 5 | Create `CLAUDE.local.md` (gitignored) with your personal Claude Code preferences. |
-| 6 | Commit the installed files: `git add . && git commit -m "chore: apply claude-github-config"` |
+| 2 | Verify the project board ([#22](https://github.com/orgs/weareinto/projects/22)) has all 9 Status columns — the installer creates any that are missing. |
+| 3 | Fill in the tech stack section in `CONTRIBUTING.md` (or re-run the installer interactively). |
+| 4 | Create `CLAUDE.local.md` (gitignored) with your personal Claude Code preferences. |
+| 5 | Commit the installed files: `git add . && git commit -m "chore: apply claude-github-config"` |
