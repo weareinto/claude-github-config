@@ -9,7 +9,7 @@ Every INTO AI project uses the same development workflow: structured GitHub issu
 | Layer | What gets configured |
 |---|---|
 | **Claude Code** (`.claude/`) | Permissions, hooks (branch and `.env` protection), and 8 workflow skills |
-| **GitHub** (`.github/`) | 4 issue templates, PR template, 8 Actions workflows, and 6 helper scripts |
+| **GitHub** (`.github/`) | 4 issue templates, PR template, 9 Actions workflows, and 6 helper scripts |
 | **Contributing guide** | `CONTRIBUTING.md` — the single source of truth for the INTO AI development lifecycle |
 | **Project context** | `doc/PROJECT.md` — skeleton for describing what the project is; loaded by Claude Code at every session start |
 
@@ -24,6 +24,7 @@ Every INTO AI project uses the same development workflow: structured GitHub issu
 | `/pr-description` | Generate a PR description from the diff |
 | `/pr-submit` | Full PR submission flow (draft → description → changelog → ready) |
 | `/changelog` | Create a towncrier changelog fragment for a PR |
+| `/claude-code-docs` | Local reference for Claude Code features (hooks, skills, MCP, subagents) |
 
 ### GitHub workflows installed
 
@@ -37,6 +38,7 @@ Every INTO AI project uses the same development workflow: structured GitHub issu
 | `generate-changelog.yml` | Manual dispatch | Compiles changelog fragments into CHANGELOG.md, opens release PR |
 | `tag-on-release-merge.yml` | Release PR merged | Creates annotated git tag and GitHub Release |
 | `sync-deploy-status.yml` | Push to staging/production | Moves linked issue cards to Staging or Production |
+| `update-config.yml` | Manual dispatch | Pulls the latest template and opens a PR with the diff |
 
 ## Usage
 
@@ -58,21 +60,26 @@ Re-running is safe. The installer is idempotent.
 
 ## After install
 
-```bash
-# 1. Add the PROJECT_PAT secret (fine-grained PAT: project:write + repo:read)
-gh secret set PROJECT_PAT --repo <org>/<repo>
+Complete these steps in order before starting development.
 
-# 2. Verify your GitHub Project v2 board has these Status columns:
-#    Backlog → Ready → In progress → In review → Ready to deploy → Staging → Production → Done
+1. **Fill in `doc/PROJECT.md`** — Claude Code loads this at every session. Without it the AI has no project context. Ask Claude Code: *"fill in doc/PROJECT.md based on what you know about this project"*
 
-# 3. Fill in the tech stack setup section in CONTRIBUTING.md
+2. **Fill in `CONTRIBUTING.md` — tech stack** — Re-run the installer interactively and pick your stacks, or edit the section manually.
 
-# 4. Create a CLAUDE.local.md (gitignored) with your personal Claude Code preferences
+3. **Fill in `CONTRIBUTING.md` — section 9 repo structure** — Ask Claude Code: *"document the repo structure for section 9 of CONTRIBUTING.md"*
 
-# 5. Commit the applied files
-git add .
-git commit -m "chore: apply claude-github-config"
-```
+4. **Fill in `CLAUDE.local.md`** — The installer created a skeleton. Add your personal Claude Code preferences. This file is gitignored.
+
+5. **Add GitHub secrets:**
+   ```bash
+   gh secret set PROJECT_PAT --repo <org>/<repo>   # fine-grained PAT: project:write + repo:read
+   gh secret set CONFIG_PAT  --repo <org>/<repo>   # read access to weareinto/claude-github-config
+   ```
+
+6. **Commit:**
+   ```bash
+   git add . && git commit -m "chore: apply claude-github-config"
+   ```
 
 ## Updating a project
 

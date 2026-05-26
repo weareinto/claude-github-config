@@ -15,9 +15,9 @@
 # Files you ADD to the repo (not in the template) are never touched regardless
 # of this file — the installer only processes files that exist in the template.
 
-doc/PROJECT.mdCONTRIBUTING.md
-.claude-github-config-ignore
+doc/PROJECT.md
 CONTRIBUTING.md
+.claude-github-config-ignore
 .claude/skills/claude-code-docs/SKILL.md
 .claude/skills/claude-code-docs/hooks-reference.md
 .claude/skills/claude-code-docs/mcp-reference.md
