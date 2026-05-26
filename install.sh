@@ -285,7 +285,7 @@ apply_file() {
   echo -e "  ${YELLOW}conflict${NC} $rel (already exists — showing diff)"
   diff --color=always <(echo "$existing_content") <(echo "$new_content") | head -30 | sed 's/^/    /' || true
   echo ""
-  read -rp "    [o]verwrite / [s]kip / [i]gnore permanently / [d]iff full ? " CHOICE
+  read -rp "    [o]verwrite / [s]kip / [i]gnore permanently / [d]iff full ? " CHOICE < /dev/tty
   case "$CHOICE" in
     [oO])
       printf '%s' "$new_content" > "$dst"
@@ -301,7 +301,7 @@ apply_file() {
       ;;
     [dD])
       diff <(echo "$existing_content") <(echo "$new_content") | less || true
-      read -rp "    [o]verwrite / [s]kip / [i]gnore permanently ? " CHOICE2
+      read -rp "    [o]verwrite / [s]kip / [i]gnore permanently ? " CHOICE2 < /dev/tty
       case "$CHOICE2" in
         [oO])
           printf '%s' "$new_content" > "$dst"
