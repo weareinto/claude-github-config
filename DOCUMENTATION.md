@@ -654,22 +654,19 @@ bash /tmp/cgc/install.sh
 # 1. Fill in doc/PROJECT.md — Claude Code loads this at every session start.
 #    Without it, the AI has no context about what the project is.
 
-# 2. Add the PROJECT_PAT secret (fine-grained PAT: project:write + repo:read)
-gh secret set PROJECT_PAT --repo <ORG>/<REPO>
+# 2. Fill in the tech stack setup in CONTRIBUTING.md (section "Quick start")
 
-# 3. Fill in the tech stack setup in CONTRIBUTING.md (section "Quick start")
+# 3. Add CI workflow for your stack (.github/workflows/ci.yml) — not included
 
-# 4. Add CI workflow for your stack (.github/workflows/ci.yml) — not included
+# 4. Create CLAUDE.local.md (gitignored) with personal Claude Code preferences
 
-# 5. Create CLAUDE.local.md (gitignored) with personal Claude Code preferences
-
-# 6. Commit the applied files
+# 5. Commit the applied files
 git add .
 git commit -m "chore: apply claude-github-config"
 ```
 
-> **Note:** The installer automatically verifies and adds missing GitHub Project status columns.
-> No manual step needed for the board setup.
+> **Note:** `PROJECT_PAT` is configured at the `weareinto` org level (All repositories) — no per-repo setup needed.
+> The installer also automatically verifies and adds missing GitHub Project status columns.
 
 ### Updating an existing project
 
@@ -861,15 +858,17 @@ The skill has a `WebFetch` fallback — if a question is not answered by the loc
 
 ### Required GitHub secret
 
-All project-board workflows depend on `PROJECT_PAT`:
+All project-board workflows depend on `PROJECT_PAT`.
 
-> A **fine-grained personal access token** with:
-> - Repository permission: `Contents: read`
-> - Organization permission: `Projects: write`
+> `PROJECT_PAT` is already configured as an **organization-level secret** on `weareinto` with visibility **All repositories**. No per-repo setup is needed — every repo inherits it automatically.
 
-Create it at `https://github.com/settings/personal-access-tokens/new` and add it as a repository secret:
+If you ever need to rotate or recreate it, it must be a **fine-grained personal access token** with:
+- Repository permission: `Contents: read`
+- Organization permission: `Projects: write`
+
+Set it at the org level (not per-repo):
 ```bash
-gh secret set PROJECT_PAT --repo <ORG>/<REPO>
+gh secret set PROJECT_PAT --org weareinto --visibility all
 ```
 
 Without this secret, the four board-automation workflows (`checklist-to-ready`, `assign-pr-to-project`, `sync-deploy-status`, `inject-design-section`) degrade gracefully — they log a warning and exit 0, so they never block a PR or a deploy.
