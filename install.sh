@@ -14,6 +14,9 @@
 #
 # Usage (CI / non-interactive) — reads values from .claude-github-config.json:
 #   bash install.sh --ci
+#
+# Usage (sandbox) — installs into ./repo-test/ without touching the current repo:
+#   bash install.sh --test
 
 set -euo pipefail
 
@@ -33,12 +36,31 @@ for arg in "$@"; do
     --ci)           CI_MODE=true ;;
     --batch-apply)  CI_MODE=true; BATCH_ACTION="a" ;;
     --batch-skip)   CI_MODE=true; BATCH_ACTION="s" ;;
+    --test)         TEST_MODE=true ;;
   esac
 done
 
 TARGET_DIR="$(pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/template"
+
+# ---- Test mode: install into ./repo-test/ ----------------------------------
+if [ "${TEST_MODE:-false}" = true ]; then
+  TARGET_DIR="$SCRIPT_DIR/repo-test"
+  mkdir -p "$TARGET_DIR"
+  if ! git -C "$TARGET_DIR" rev-parse --git-dir > /dev/null 2>&1; then
+    git -C "$TARGET_DIR" init -q
+    git -C "$TARGET_DIR" config user.email "test@example.com"
+    git -C "$TARGET_DIR" config user.name "Test"
+  fi
+  # Seed the saved config from the current repo so the user is not prompted
+  # to re-enter org/repo/project from scratch.
+  local_config="$SCRIPT_DIR/.claude-github-config.json"
+  if [ -f "$local_config" ]; then
+    cp "$local_config" "$TARGET_DIR/.claude-github-config.json"
+  fi
+fi
+
 CONFIG_FILE="$TARGET_DIR/.claude-github-config.json"
 IGNORE_FILE="$TARGET_DIR/.claude-github-config-ignore"
 
@@ -520,6 +542,7 @@ INNEREOF
 
 setup_tech_stack() {
   [ "$CI_MODE" = true ] && return
+  [ "$INSTALL_MODE" = "skills-only" ] && return 0
 
   local contributing="$TARGET_DIR/CONTRIBUTING.md"
   [ -f "$contributing" ] || return 0
@@ -611,6 +634,7 @@ INNEREOF
 
 setup_claude_local() {
   [ "$CI_MODE" = true ] && return
+  [ "$INSTALL_MODE" = "skills-only" ] && return 0
 
   local claude_local="$TARGET_DIR/CLAUDE.local.md"
 

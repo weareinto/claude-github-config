@@ -476,3 +476,43 @@ PYEOF
   echo "$output" | grep -qF "CONTRIBUTING.md"
   echo "$output" | grep -qF "copilot-instructions.md"
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. INSTALL MODE (skills-only vs full reinstall)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@test "install mode: no detection prompt on fresh install" {
+  # TARGET_DIR has no .claude/settings.json — mode prompt must not appear
+  # Input: y (confirm config) + 4 (skip tech stack)
+  run bash -c "cd '$TARGET_DIR' && printf 'y\n4\n' | bash '$INSTALL_SH' 2>&1"
+  [ "$status" -eq 0 ]
+  ! echo "$output" | grep -qF "Existing Claude Code configuration detected"
+}
+
+@test "install mode: detection prompt shown when .claude/settings.json exists" {
+  mkdir -p "$TARGET_DIR/.claude"
+  echo '{}' > "$TARGET_DIR/.claude/settings.json"
+
+  # Input: y (confirm config) + 2 (skills-only) + 4 (skip tech stack)
+  run bash -c "cd '$TARGET_DIR' && printf 'y\n2\n4\n' | bash '$INSTALL_SH' 2>&1"
+  [ "$status" -eq 0 ]
+  echo "$output" | grep -qF "Existing Claude Code configuration detected"
+}
+
+@test "install mode: skills-only suppresses non-skill files from output" {
+  # Full install first so .claude/settings.json exists
+  _install_ci
+  [ "$status" -eq 0 ]
+
+  # Input: y (confirm config) + 2 (skills-only) + 4 (skip tech stack)
+  run bash -c "cd '$TARGET_DIR' && printf 'y\n2\n4\n' | bash '$INSTALL_SH' 2>&1"
+  [ "$status" -eq 0 ]
+  # Non-skill files must be silent — not appear in output
+  ! echo "$output" | grep -qF "CONTRIBUTING.md"
+  ! echo "$output" | grep -qF "doc/PROJECT.md"
+  # Skills must appear
+  echo "$output" | grep -qF ".claude/skills/"
+  # Summary must show mode note
+  echo "$output" | grep -qF "skills & hooks only"
+}

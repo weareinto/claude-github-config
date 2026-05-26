@@ -4,3 +4,6 @@
 
 # Personal Claude Code preferences — always gitignored
 CLAUDE.local.md
+
+# --test sandbox — never commit
+repo-test/
