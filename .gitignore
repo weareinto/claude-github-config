@@ -1,0 +1,6 @@
+# Local installer config — contains org/repo/project_number for this repo.
+# Never commit: it's machine-specific and may reveal internal project details.
+.claude-github-config.json
+
+# Personal Claude Code preferences — always gitignored
+CLAUDE.local.md

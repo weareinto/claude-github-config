@@ -1,6 +1,6 @@
 ---
 name: start
-description: Guided 4-step pre-implementation gate — verify ticket exists, status is Ready, create linked branch, move card to In progress. Run before any code changes. Project-specific (weareinto/ldl-voice-eval-agent, Project #15) — not portable as-is.
+description: Guided 4-step pre-implementation gate — verify ticket exists, status is Ready, create linked branch, move card to In progress. Run before any code changes. Uses {{ORG}}, {{REPO}}, {{PROJECT_NUMBER}} — substituted at install time.
 ---
 
 Guides the contributor through the mandatory 4-step pre-implementation gate defined in CONTRIBUTING.md § 4. Run this skill whenever you are about to start work on a GitHub issue.
@@ -94,7 +94,7 @@ gh api graphql -f query='
       }
     }
   }
-' -F org="weareinto" -F number=15
+' -F org="{{ORG}}" -F number={{PROJECT_NUMBER}}
 
 # 2. Resolve the item ID for this issue
 gh api graphql -f query='
@@ -113,7 +113,7 @@ gh api graphql -f query='
       }
     }
   }
-' -F org="weareinto" -F repo="ldl-voice-eval-agent" -F number=<ISSUE_NUMBER>
+' -F org="{{ORG}}" -F repo="{{REPO}}" -F number=<ISSUE_NUMBER>
 
 # 3. Mutate status to In progress
 gh api graphql -f query='
