@@ -27,9 +27,12 @@ NC='\033[0m'
 # ---- Parse flags -----------------------------------------------------------
 
 CI_MODE=false
+BATCH_ACTION=""   # "a"=apply-all  "s"=skip-all  ""=ask per-file
 for arg in "$@"; do
   case "$arg" in
-    --ci) CI_MODE=true ;;
+    --ci)           CI_MODE=true ;;
+    --batch-apply)  CI_MODE=true; BATCH_ACTION="a" ;;
+    --batch-skip)   CI_MODE=true; BATCH_ACTION="s" ;;
   esac
 done
 
@@ -282,6 +285,14 @@ apply_file() {
     return
   fi
 
+  # --batch-skip: keep the user's version intact
+  if [ "$BATCH_ACTION" = "s" ]; then
+    echo -e "  ${YELLOW}skipped${NC}  $rel"
+    SKIPPED=$((SKIPPED + 1))
+    return
+  fi
+
+  # --ci or --batch-apply: overwrite silently
   if [ "$CI_MODE" = true ]; then
     printf '%s' "$new_content" > "$dst"
     [[ "$src" == *.sh ]] && chmod +x "$dst"
@@ -590,6 +601,44 @@ MDEOF
 # ---- Walk the template directory and apply every file ----------------------
 
 load_ignore_patterns
+
+# ---- Pre-scan: list conflicts and (optionally) ask for a batch decision -----
+# Always run except in plain --ci mode (no BATCH_ACTION set).
+
+if [ "$CI_MODE" = false ] || [ -n "$BATCH_ACTION" ]; then
+  _conflict_files=()
+  while IFS= read -r -d '' _src; do
+    _rel="${_src#$TEMPLATE_DIR/}"
+    _dst="$TARGET_DIR/$_rel"
+    is_ignored "$_rel" && continue
+    [ -f "$_dst" ] || continue
+    _nc=$(substitute < "$_src")
+    _ec=$(cat "$_dst")
+    [ "$_nc" != "$_ec" ] && _conflict_files+=("$_rel")
+  done < <(find "$TEMPLATE_DIR" -type f -print0 | sort -z)
+  unset _src _rel _dst _nc _ec
+
+  if [ "${#_conflict_files[@]}" -gt 0 ]; then
+    echo ""
+    echo -e "${BOLD}${#_conflict_files[@]} file(s) differ from the template:${NC}"
+    printf '  %s\n' "${_conflict_files[@]}"
+    echo ""
+
+    # Interactive run without a pre-set batch action: ask once
+    if [ "$CI_MODE" = false ] && [ -z "$BATCH_ACTION" ]; then
+      if [ "${#_conflict_files[@]}" -gt 1 ]; then
+        read -rp "  [a]pply all / [s]kip all / [p]ick individually [default] ? " _choice
+        case "${_choice,,}" in
+          a) BATCH_ACTION="a" ;;
+          s) BATCH_ACTION="s" ;;
+        esac
+        unset _choice
+        echo ""
+      fi
+    fi
+  fi
+  unset _conflict_files
+fi
 
 while IFS= read -r -d '' src_file; do
   rel="${src_file#$TEMPLATE_DIR/}"
