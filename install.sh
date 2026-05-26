@@ -283,7 +283,7 @@ apply_file() {
   fi
 
   echo -e "  ${YELLOW}conflict${NC} $rel (already exists — showing diff)"
-  diff --color=always <(echo "$existing_content") <(echo "$new_content") | head -30 | sed 's/^/    /'
+  diff --color=always <(echo "$existing_content") <(echo "$new_content") | head -30 | sed 's/^/    /' || true
   echo ""
   read -rp "    [o]verwrite / [s]kip / [i]gnore permanently / [d]iff full ? " CHOICE
   case "$CHOICE" in
@@ -300,7 +300,7 @@ apply_file() {
       IGNORED=$((IGNORED + 1))
       ;;
     [dD])
-      diff <(echo "$existing_content") <(echo "$new_content") | less
+      diff <(echo "$existing_content") <(echo "$new_content") | less || true
       read -rp "    [o]verwrite / [s]kip / [i]gnore permanently ? " CHOICE2
       case "$CHOICE2" in
         [oO])
