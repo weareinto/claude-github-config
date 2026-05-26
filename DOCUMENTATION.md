@@ -646,9 +646,11 @@ bash /tmp/cgc/install.sh
    - If it already exists and content is identical → reports "ok", no write.
    - If it already exists and content differs → shows a diff (truncated to 30 lines) and asks: overwrite / skip / ignore permanently / show full diff.
 5. Sets `chmod +x` on `.sh` files automatically.
-6. **Verifies GitHub Project status columns** — checks that the board has all 9 required columns. Missing columns are added automatically:
+6. **Tech stack setup** — asks which stacks the project uses (Python, Node, Docker) and fills in the `## Quick start` section of `CONTRIBUTING.md` automatically.
+7. **Creates `CLAUDE.local.md`** — generates a personal preferences skeleton (gitignored). Skipped if the file already exists.
+8. **Verifies GitHub Project status columns** — checks that the board has all 9 required columns. Missing columns are added automatically:
    `Backlog → Ready → Blocked → In progress → In review → Ready to deploy → Staging → Production → Done`
-7. Prints a summary and next-steps checklist.
+9. Prints a summary and a link to the post-installation checklist.
 
 ### After installation
 
@@ -656,16 +658,14 @@ bash /tmp/cgc/install.sh
 # 1. Fill in doc/PROJECT.md — Claude Code loads this at every session start.
 #    Without it, the AI has no context about what the project is.
 
-# 2. Fill in the tech stack setup in CONTRIBUTING.md (section "Quick start")
+# 2. Add CI workflow for your stack (.github/workflows/ci.yml) — not included
 
-# 3. Add CI workflow for your stack (.github/workflows/ci.yml) — not included
-
-# 4. Create CLAUDE.local.md (gitignored) with personal Claude Code preferences
-
-# 5. Commit the applied files
+# 3. Commit the applied files
 git add .
 git commit -m "chore: apply claude-github-config"
 ```
+
+> The tech stack setup in `CONTRIBUTING.md` and `CLAUDE.local.md` are handled interactively by the installer.
 
 > **Note:** `PROJECT_PAT` is configured at the `weareinto` org level (All repositories) — no per-repo setup needed.
 > The installer also automatically verifies and adds missing GitHub Project status columns.
