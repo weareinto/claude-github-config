@@ -211,6 +211,8 @@ A ticket is **Done** when:
 - [ ] Documentation updated if public behavior changed.
 - [ ] Deployed to staging and verified.
 - [ ] Linked issues (if any) auto-closed by `Closes #ID` lines in the PR body.
+  
+Done ≠ Released. **Released** means the changelog entry has been rolled into a `vX.Y.Z` tag and deployed to production.
 
 ---
 
